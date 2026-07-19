@@ -2,8 +2,9 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { useAuth } from "./auth/AuthContext";
 import { AppShell } from "./components/AppShell";
 import { LoginPage } from "./pages/LoginPage";
+import { MeetingDetailPage } from "./pages/MeetingDetailPage";
 import { MeetingsPage } from "./pages/MeetingsPage";
-import { RecordPlaceholderPage } from "./pages/RecordPlaceholderPage";
+import { RecordPage } from "./pages/RecordPage";
 import { SettingsPage } from "./pages/SettingsPage";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -52,7 +53,8 @@ export function App() {
         }
       >
         <Route index element={<MeetingsPage />} />
-        <Route path="record" element={<RecordPlaceholderPage />} />
+        <Route path="record" element={<RecordPage />} />
+        <Route path="meetings/:id" element={<MeetingDetailPage />} />
         <Route path="me" element={<SettingsPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

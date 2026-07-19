@@ -147,18 +147,18 @@ _Avoid_: 首版 Postgres/多节点对象存储；无数据库的纯散落文件�
 
 ## 当前方位（2026-07-19）
 
-- **阶段：** 产品实现已开工（S0b 合 main）  
+- **阶段：** S0b + **S1 转写通路** 已合 main（ASR 默认 **mock**，FunASR 旁路待接）  
 - **工程：** Slice Owner · [workflow](docs/agents/workflow.md) · **main 直推**（ADR 0008）  
 - **参考：** [catalog](docs/design/reference/catalog.md)  
-- **上一刀：** **S0b 账号与设置** — closeout [`docs/progress/s0b-auth-settings-impl-1.md`](docs/progress/s0b-auth-settings-impl-1.md)（注册/登录/鉴权/LLM 设置 UI+API）  
+- **上一刀：** **S1 转写通路** — [`docs/progress/s1-capture-transcribe-impl-1.md`](docs/progress/s1-capture-transcribe-impl-1.md)  
+- **再上一刀：** S0b 账号与设置 — [`docs/progress/s0b-auth-settings-impl-1.md`](docs/progress/s0b-auth-settings-impl-1.md)  
 - **应用代码：** `app/web` + `app/server`（pnpm monorepo）  
-- **Store 注记：** 本机用 **Drizzle + `@libsql/client` 本地 SQLite 文件**（无 VS C++ 时替代 better-sqlite3 编译；仍符合磁盘+SQLite）  
+- **Store 注记：** Drizzle + **`@libsql/client` 本地 SQLite** + `DATA_DIR/media`  
 - **已定形态：** 自托管 Web · 现场麦录音 · Auto Minutes · 追问子页 · 外脑按需 · MD+PDF · 磁盘+SQLite · Context Pack · **显示名 Meeting Record（可配）**  
 - **IA 参考：** 智在截图摘记 [zhizai-ui-ia-notes](docs/design/research/2026-07-19-zhizai-ui-ia-notes.md)  
-- **grill-with-docs：** 产品决策已收口（2026-07-19）  
 - **PRD / Spec：** [`.scratch/meeting-record-mvp/spec.md`](.scratch/meeting-record-mvp/spec.md)  
-- **可点击原型：** [`docs/design/prototype/mvp/`](docs/design/prototype/mvp/)（Claude 静态 SPA，验收对照）  
-- **下一步建议：** **S1 转写通路** — 会议/录音入库 · 浏览器录音或上传 · 串行 Job（可先 mock ASR）· Transcript 阅读 UI  
+- **可点击原型：** [`docs/design/prototype/mvp/`](docs/design/prototype/mvp/)  
+- **下一步建议：** **S2 纪要通路** — Job 成功后 Auto Minutes · 可编辑 · 导出 MD+PDF  
 
 ## 相关入口
 

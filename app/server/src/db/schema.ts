@@ -1,4 +1,4 @@
-import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { integer, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 export const users = sqliteTable("users", {
   id: text("id").primaryKey(),
@@ -23,5 +23,80 @@ export const sessions = sqliteTable("sessions", {
   createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
 });
 
+/** Meeting list card unit — one conversation with optional multi-recording. */
+export const meetings = sqliteTable("meetings", {
+  id: text("id").primaryKey(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  /** draft | processing | ready | failed */
+  status: text("status").notNull().default("draft"),
+  summary: text("summary").notNull().default(""),
+  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+});
+
+export const recordings = sqliteTable("recordings", {
+  id: text("id").primaryKey(),
+  meetingId: text("meeting_id")
+    .notNull()
+    .references(() => meetings.id, { onDelete: "cascade" }),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  /** Absolute or data-dir-relative path on disk */
+  storagePath: text("storage_path").notNull(),
+  originalFilename: text("original_filename").notNull().default(""),
+  mimeType: text("mime_type").notNull().default("application/octet-stream"),
+  byteSize: integer("byte_size").notNull().default(0),
+  durationMs: integer("duration_ms"),
+  source: text("source").notNull().default("upload"), // upload | browser
+  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+});
+
+export const transcriptionJobs = sqliteTable("transcription_jobs", {
+  id: text("id").primaryKey(),
+  meetingId: text("meeting_id")
+    .notNull()
+    .references(() => meetings.id, { onDelete: "cascade" }),
+  recordingId: text("recording_id")
+    .notNull()
+    .references(() => recordings.id, { onDelete: "cascade" }),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  /** queued | running | succeeded | failed | degraded */
+  status: text("status").notNull().default("queued"),
+  engine: text("engine").notNull().default("mock"),
+  errorMessage: text("error_message").notNull().default(""),
+  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  startedAt: integer("started_at", { mode: "timestamp_ms" }),
+  finishedAt: integer("finished_at", { mode: "timestamp_ms" }),
+});
+
+export const transcriptSegments = sqliteTable("transcript_segments", {
+  id: text("id").primaryKey(),
+  meetingId: text("meeting_id")
+    .notNull()
+    .references(() => meetings.id, { onDelete: "cascade" }),
+  recordingId: text("recording_id")
+    .notNull()
+    .references(() => recordings.id, { onDelete: "cascade" }),
+  jobId: text("job_id")
+    .notNull()
+    .references(() => transcriptionJobs.id, { onDelete: "cascade" }),
+  idx: integer("idx").notNull(),
+  speaker: text("speaker").notNull().default("Speaker 0"),
+  startMs: integer("start_ms").notNull().default(0),
+  endMs: integer("end_ms").notNull().default(0),
+  text: text("text").notNull(),
+  confidence: real("confidence"),
+});
+
 export type User = typeof users.$inferSelect;
 export type Session = typeof sessions.$inferSelect;
+export type Meeting = typeof meetings.$inferSelect;
+export type Recording = typeof recordings.$inferSelect;
+export type TranscriptionJob = typeof transcriptionJobs.$inferSelect;
+export type TranscriptSegment = typeof transcriptSegments.$inferSelect;

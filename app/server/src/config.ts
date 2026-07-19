@@ -22,6 +22,14 @@ export const config = {
   dataDir: process.env.DATA_DIR ?? "./data",
   sessionTtlDays: 30,
   cookieName: "mr_session",
+  maxRecordingMinutes: Number(process.env.MAX_RECORDING_MINUTES ?? 60),
+  /**
+   * ASR engine: "mock" (default, no Python) | future "funasr"
+   * Real FunASR sidecar is a follow-up; pipeline port is stable.
+   */
+  asrEngine: (process.env.ASR_ENGINE?.trim() || "mock") as "mock" | "funasr",
+  /** Mock job artificial delay (ms) so UI can show processing state. */
+  mockAsrDelayMs: Number(process.env.MOCK_ASR_DELAY_MS ?? 800),
   /** Deploy-default LLM (user settings override when set) */
   llm: {
     baseUrl: process.env.LLM_BASE_URL?.trim() || "",

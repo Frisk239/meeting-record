@@ -5,8 +5,11 @@ import { config } from "./config.js";
 import { HttpError } from "./lib/errors.js";
 import type { AuthVariables } from "./middleware/auth.js";
 import { authRoutes } from "./routes/auth.js";
+import { meetingRoutes } from "./routes/meetings.js";
+import { ensureMediaDirs } from "./services/storage.js";
 
 export function createApp() {
+  ensureMediaDirs();
   const app = new Hono<{ Variables: AuthVariables }>();
 
   app.use(
@@ -23,10 +26,13 @@ export function createApp() {
     c.json({
       ok: true,
       appName: config.appName,
+      asrEngine: config.asrEngine,
+      maxRecordingMinutes: config.maxRecordingMinutes,
     }),
   );
 
   app.route("/api/auth", authRoutes);
+  app.route("/api/meetings", meetingRoutes);
 
   app.notFound((c) => c.json({ error: "not_found", message: "未找到" }, 404));
 

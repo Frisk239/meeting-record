@@ -12,6 +12,47 @@ export type LlmSettings = {
   source: "user" | "env" | "none";
 };
 
+export type MeetingListItem = {
+  id: string;
+  title: string;
+  status: string;
+  summary: string;
+  createdAt: string;
+  updatedAt: string;
+  latestJobStatus: string | null;
+};
+
+export type TranscriptLine = {
+  id: string;
+  idx: number;
+  speaker: string;
+  startMs: number;
+  endMs: number;
+  text: string;
+};
+
+export type MeetingDetail = MeetingListItem & {
+  recordings: Array<{
+    id: string;
+    originalFilename: string;
+    mimeType: string;
+    byteSize: number;
+    source: string;
+    createdAt: string;
+  }>;
+  jobs: Array<{
+    id: string;
+    status: string;
+    engine: string;
+    errorMessage: string;
+    recordingId: string;
+    createdAt: string;
+    startedAt: string | null;
+    finishedAt: string | null;
+  }>;
+  transcript: TranscriptLine[];
+};
+
 export type ApiError = {
   error?: string;
   message?: string;
@@ -30,7 +71,7 @@ export async function api<T>(
   init: RequestInit = {},
 ): Promise<{ ok: true; status: number; data: T } | { ok: false; status: number; data: ApiError }> {
   const headers = new Headers(init.headers);
-  if (init.body && !headers.has("content-type")) {
+  if (init.body && !(init.body instanceof FormData) && !headers.has("content-type")) {
     headers.set("content-type", "application/json");
   }
   const res = await fetch(`${API_BASE}${path}`, {
@@ -81,4 +122,37 @@ export function putLlmSettings(body: {
     method: "PUT",
     body: JSON.stringify(body),
   });
+}
+
+export function listMeetings() {
+  return api<{ meetings: MeetingListItem[] }>("/api/meetings");
+}
+
+export function getMeeting(id: string) {
+  return api<{ meeting: MeetingDetail }>(`/api/meetings/${id}`);
+}
+
+export function uploadRecording(input: {
+  file: Blob;
+  filename: string;
+  meetingId?: string;
+  title?: string;
+  source: "upload" | "browser";
+}) {
+  const form = new FormData();
+  form.append("file", input.file, input.filename);
+  form.append("source", input.source);
+  if (input.meetingId) form.append("meetingId", input.meetingId);
+  if (input.title) form.append("title", input.title);
+  return api<{ meeting: MeetingDetail; jobId: string }>("/api/meetings/upload", {
+    method: "POST",
+    body: form,
+  });
+}
+
+export function formatTime(ms: number): string {
+  const totalSec = Math.max(0, Math.floor(ms / 1000));
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
