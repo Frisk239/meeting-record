@@ -124,6 +124,8 @@ export class FunasrEngine implements AsrEngine {
       config.funasrVad,
       "--spk",
       config.funasrSpk,
+      "--punc",
+      config.funasrPunc,
       "--device",
       config.funasrDevice,
       "--hub",

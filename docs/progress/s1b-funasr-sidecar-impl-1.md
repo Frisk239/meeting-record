@@ -27,7 +27,7 @@
 |---|---|
 | `pnpm test` | 含 funasr 契约；全量应绿 |
 | `python workers/asr/worker.py --self-test-parse` | 不下载模型 |
-| 真模型推理 | **本机关刀时可能未装 funasr/torch**；接线已落地，首次 `pip install` + 模型下载后验收 |
+| 真模型推理 | **已补证** [`s1b-funasr-real-wav-evidence.md`](./s1b-funasr-real-wav-evidence.md)：`engine=funasr` + 真中文 + Speaker |
 
 ## 不做
 

@@ -147,14 +147,14 @@ _Avoid_: 首版 Postgres/多节点对象存储；无数据库的纯散落文件�
 
 ## 当前方位（2026-07-19）
 
-- **阶段：** MVP 主闭环 + **FunASR 旁路已接线**（默认仍 mock；生产设 `ASR_ENGINE=funasr`）  
-- **工程：** Slice Owner · [workflow](docs/agents/workflow.md) · **main 直推**（ADR 0008）  
-- **上一刀：** **S1b FunASR sidecar** — [`docs/progress/s1b-funasr-sidecar-impl-1.md`](docs/progress/s1b-funasr-sidecar-impl-1.md)  
-- **已交付：** S0b–S4 产品路径 · `workers/asr` CPU 旁路（SenseVoice+VAD+CAM++）  
+- **阶段：** **P0 能力闭环已可演示**（含 FunASR 真 wav Job 证据；默认 dev 仍可 mock）  
+- **工程：** Slice Owner · [workflow](docs/agents/workflow.md) · main 本地提交（push 由人手动）  
+- **上一刀补证：** FunASR 真转写 — [`docs/progress/s1b-funasr-real-wav-evidence.md`](docs/progress/s1b-funasr-real-wav-evidence.md)  
+- **已交付：** S0b–S4 · S1b 旁路 · API/Playwright 部分 E2E  
 - **应用：** `app/web` + `app/server` + `workers/asr`  
-- **Store：** Drizzle + `@libsql/client` 本地 SQLite + `DATA_DIR/media`  
-- **债务：** 本机需 pip 装 torch/funasr 与首下模型；PDF CJK；Playwright；4G 实测 RTF  
-- **下一步建议：** 装好 venv 后用真实 wav 验收 · Playwright · 原文播放  
+- **Store：** Drizzle + `@libsql/client` + `DATA_DIR/media`  
+- **残余 polish（非阻断）：** PDF CJK 字体、原文播放、Playwright 文件上传手势、多说话人长会实测、4G RSS 表  
+- **下一步建议：** 人 `git push` · 多说话人样例 · 播放器 polish  
   
 
 ## 相关入口

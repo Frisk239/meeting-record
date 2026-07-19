@@ -41,6 +41,8 @@ export const config = {
   funasrModel: process.env.FUNASR_MODEL?.trim() || "iic/SenseVoiceSmall",
   funasrVad: process.env.FUNASR_VAD?.trim() || "fsmn-vad",
   funasrSpk: process.env.FUNASR_SPK?.trim() ?? "cam++",
+  /** Empty disables punctuation model */
+  funasrPunc: process.env.FUNASR_PUNC?.trim() ?? "ct-punc",
   funasrDevice: process.env.FUNASR_DEVICE?.trim() || "cpu",
   funasrHub: process.env.FUNASR_HUB?.trim() || "ms",
   funasrBatchSizeS: Number(process.env.FUNASR_BATCH_SIZE_S ?? 60),

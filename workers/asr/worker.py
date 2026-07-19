@@ -40,9 +40,10 @@ def load_model(
     spk_model: str | None,
     device: str,
     hub: str,
+    punc_model: str | None = "ct-punc",
 ) -> Any:
     global _MODEL, _MODEL_KEY
-    key = f"{model_id}|{vad_model}|{spk_model}|{device}|{hub}"
+    key = f"{model_id}|{vad_model}|{spk_model}|{punc_model}|{device}|{hub}"
     if _MODEL is not None and _MODEL_KEY == key:
         return _MODEL
 
@@ -58,6 +59,9 @@ def load_model(
     }
     if spk_model:
         kwargs["spk_model"] = spk_model
+    # FunASR warns: without punc_model, diarization falls back to vad_segment mode
+    if punc_model:
+        kwargs["punc_model"] = punc_model
 
     log(f"[asr-worker] loading AutoModel {kwargs}")
     t0 = time.time()
@@ -74,10 +78,19 @@ def _to_ms(x: Any) -> int:
         v = float(x)
     except (TypeError, ValueError):
         return 0
-    # FunASR often returns seconds; large values are already ms
-    if v > 0 and v < 10_000:
+    # FunASR sentence_info / timestamps are usually milliseconds (e.g. 610, 5530).
+    # Only treat as seconds when clearly sub-minute fractional/small (e.g. 1.23, 5.5).
+    if 0 < v < 100 and (v != int(v) or v < 30):
         return int(round(v * 1000))
     return int(round(v))
+
+
+def _clean_text(text: str) -> str:
+    import re
+
+    # SenseVoice language/emotion/event tags: <|zh|><|NEUTRAL|>...
+    t = re.sub(r"<\|[^|>]+?\|>", "", text or "")
+    return t.strip()
 
 
 def parse_funasr_result(raw: Any) -> list[dict[str, Any]]:
@@ -114,7 +127,7 @@ def parse_funasr_result(raw: Any) -> list[dict[str, Any]]:
             for s in sentence_info:
                 if not isinstance(s, dict):
                     continue
-                text = (s.get("text") or s.get("sentence") or "").strip()
+                text = _clean_text(s.get("text") or s.get("sentence") or "")
                 if not text:
                     continue
                 spk = s.get("spk")
@@ -139,12 +152,7 @@ def parse_funasr_result(raw: Any) -> list[dict[str, Any]]:
                 )
             continue
 
-        text = (item.get("text") or "").strip()
-        # Strip SenseVoice special tags like <|zh|> if present
-        if text:
-            import re
-
-            text = re.sub(r"<\|[^|>]+\|>", "", text).strip()
+        text = _clean_text(item.get("text") or "")
         if not text:
             continue
         ts = item.get("timestamp") or item.get("time_stamp")
@@ -177,6 +185,7 @@ def transcribe_file(
     device: str,
     hub: str,
     batch_size_s: int,
+    punc_model: str | None = "ct-punc",
 ) -> dict[str, Any]:
     path = Path(audio)
     if not path.is_file():
@@ -188,7 +197,7 @@ def transcribe_file(
         }
 
     try:
-        model = load_model(model_id, vad_model, spk_model, device, hub)
+        model = load_model(model_id, vad_model, spk_model, device, hub, punc_model)
     except Exception as e:
         return {
             "status": "failed",
@@ -259,6 +268,11 @@ def main() -> int:
         help="Speaker model id; empty string disables",
     )
     p.add_argument(
+        "--punc",
+        default=os.environ.get("FUNASR_PUNC", "ct-punc"),
+        help="Punctuation model; improves diarization sentence_info (empty disables)",
+    )
+    p.add_argument(
         "--device",
         default=os.environ.get("FUNASR_DEVICE", "cpu"),
         help="cpu (default) or cuda",
@@ -285,13 +299,20 @@ def main() -> int:
         fixture = [
             {
                 "sentence_info": [
-                    {"text": "你好", "start": 0.0, "end": 1.2, "spk": 0},
-                    {"text": "大家好", "start": 1.2, "end": 2.5, "spk": 1},
+                    {
+                        "text": "<|zh|><|NEUTRAL|>你好",
+                        "start": 0,
+                        "end": 1200,
+                        "spk": 0,
+                    },
+                    {"text": "大家好", "start": 1200, "end": 2500, "spk": 1},
                 ]
             }
         ]
         segs = parse_funasr_result(fixture)
         assert len(segs) == 2 and segs[0]["speaker"] == "Speaker 0"
+        assert segs[0]["text"] == "你好"
+        assert segs[0]["startMs"] == 0 and segs[0]["endMs"] == 1200
         assert segs[1]["speaker"] == "Speaker 1"
         print(json.dumps({"ok": True, "segments": segs}, ensure_ascii=False))
         return 0
@@ -316,6 +337,8 @@ def main() -> int:
                 )
                 continue
             audio = req.get("audio") or req.get("path")
+            punc_raw = req.get("punc") if "punc" in req else args.punc
+            punc_model = (str(punc_raw).strip() or None) if punc_raw is not None else None
             out = transcribe_file(
                 audio,
                 model_id=req.get("model") or args.model,
@@ -324,6 +347,7 @@ def main() -> int:
                 device=req.get("device") or args.device,
                 hub=req.get("hub") or args.hub,
                 batch_size_s=int(req.get("batch_size_s") or args.batch_size_s),
+                punc_model=punc_model,
             )
             if req.get("request_id") is not None:
                 out["request_id"] = req["request_id"]
@@ -333,6 +357,7 @@ def main() -> int:
     if not args.audio:
         p.error("--audio is required unless --serve or --self-test-parse")
 
+    punc_model = args.punc.strip() if args.punc else None
     out = transcribe_file(
         args.audio,
         model_id=args.model,
@@ -341,6 +366,7 @@ def main() -> int:
         device=args.device,
         hub=args.hub,
         batch_size_s=args.batch_size_s,
+        punc_model=punc_model,
     )
     print(json.dumps(out, ensure_ascii=False))
     return 0 if out.get("status") in ("succeeded", "degraded") else 2

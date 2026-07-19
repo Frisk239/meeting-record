@@ -47,9 +47,11 @@ pnpm-debug.log*
 
 # Python ASR worker venv / caches
 workers/asr/.venv/
+workers/asr/.cache/
 workers/**/__pycache__/
 **/.pytest_cache/
 *.pyc
+app/server/data/
 
 # Upstream reference clones (independent git repos — do not commit)
 docs/design/reference/repos/*/

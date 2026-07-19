@@ -34,14 +34,16 @@
 
 **缺口：** `playwright-cli upload` 需文件选择器 modal state，未在 CLI 里完成隐藏 file input 导入；上传/Job 以 **API 证据 A** 与单测为准。
 
-## 证据 C — FunASR 旁路
+## 证据 C — FunASR 旁路（真 wav Job）
+
+详见 **[`s1b-funasr-real-wav-evidence.md`](./s1b-funasr-real-wav-evidence.md)**。
 
 | 检查 | 结果 |
 |---|---|
-| `workers/asr` venv + `funasr` import | **ok**（本机已装） |
-| `python worker.py --self-test-parse` | **ok**（契约） |
-| 真 wav 端到端 generate | **未在本刀跑满**（首下模型耗时长）；接线已合 main |
+| venv + funasr import | **ok** |
+| `worker.py --self-test-parse` | **ok** |
+| 真 wav → TS Job → `engine=funasr` | **ok**：文本「欢迎大家来体验达摩院推出的语音识别模型。」· Speaker 0 · minutes ready |
 
 ## 结论
 
-产品主路径在真栈可演示；真 ASR 依赖部署时 `ASR_ENGINE=funasr` + venv。Playwright 覆盖注册与主导航；转写链路以 API/单测为硬证据。
+产品主路径在真栈可演示；**CPU 真转写 + Speaker 字段**已用 FunASR 样本 wav 验收。Playwright 覆盖注册与主导航；上传/Job 以 API + funasr smoke 为硬证据。
