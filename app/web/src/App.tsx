@@ -1,0 +1,61 @@
+import { Navigate, Route, Routes } from "react-router-dom";
+import { useAuth } from "./auth/AuthContext";
+import { AppShell } from "./components/AppShell";
+import { LoginPage } from "./pages/LoginPage";
+import { MeetingsPage } from "./pages/MeetingsPage";
+import { RecordPlaceholderPage } from "./pages/RecordPlaceholderPage";
+import { SettingsPage } from "./pages/SettingsPage";
+
+function RequireAuth({ children }: { children: React.ReactNode }) {
+  const { loading, user } = useAuth();
+  if (loading) {
+    return (
+      <div className="center-screen">
+        <p className="muted">加载中…</p>
+      </div>
+    );
+  }
+  if (!user) return <Navigate to="/login" replace />;
+  return children;
+}
+
+function GuestOnly({ children }: { children: React.ReactNode }) {
+  const { loading, user } = useAuth();
+  if (loading) {
+    return (
+      <div className="center-screen">
+        <p className="muted">加载中…</p>
+      </div>
+    );
+  }
+  if (user) return <Navigate to="/" replace />;
+  return children;
+}
+
+export function App() {
+  return (
+    <Routes>
+      <Route
+        path="/login"
+        element={
+          <GuestOnly>
+            <LoginPage />
+          </GuestOnly>
+        }
+      />
+      <Route
+        path="/"
+        element={
+          <RequireAuth>
+            <AppShell />
+          </RequireAuth>
+        }
+      >
+        <Route index element={<MeetingsPage />} />
+        <Route path="record" element={<RecordPlaceholderPage />} />
+        <Route path="me" element={<SettingsPage />} />
+      </Route>
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
+}

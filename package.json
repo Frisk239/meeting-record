@@ -1,0 +1,24 @@
+{
+  "name": "meeting-record",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@10.33.0",
+  "scripts": {
+    "dev": "pnpm -r --parallel --filter @meeting-record/server --filter @meeting-record/web dev",
+    "dev:server": "pnpm --filter @meeting-record/server dev",
+    "dev:web": "pnpm --filter @meeting-record/web dev",
+    "build": "pnpm -r --filter @meeting-record/server --filter @meeting-record/web build",
+    "test": "pnpm --filter @meeting-record/server test",
+    "typecheck": "pnpm -r --filter @meeting-record/server --filter @meeting-record/web typecheck",
+    "db:generate": "pnpm --filter @meeting-record/server db:generate",
+    "db:migrate": "pnpm --filter @meeting-record/server db:migrate"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  }
+}
