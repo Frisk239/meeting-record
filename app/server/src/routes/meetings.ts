@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { badRequest } from "../lib/errors.js";
 import { requireAuth, type AuthVariables } from "../middleware/auth.js";
+import { exportMarkdown, exportPdf } from "../services/export.js";
 import {
   attachRecordingAndEnqueue,
   createMeeting,
@@ -9,6 +10,11 @@ import {
   listMeetings,
   renameMeeting,
 } from "../services/meetings.js";
+import {
+  generateMinutesForMeeting,
+  getMinutes,
+  saveMinutesMarkdown,
+} from "../services/minutes.js";
 import { ensureMediaDirs } from "../services/storage.js";
 
 export const meetingRoutes = new Hono<{ Variables: AuthVariables }>();
@@ -31,28 +37,8 @@ meetingRoutes.post("/", async (c) => {
   return c.json({ meeting }, 201);
 });
 
-meetingRoutes.get("/:id", async (c) => {
-  const user = c.get("user");
-  const meeting = await getMeeting(user.id, c.req.param("id"));
-  return c.json({ meeting });
-});
-
-meetingRoutes.patch("/:id", async (c) => {
-  const body = z
-    .object({ title: z.string().min(1) })
-    .safeParse(await c.req.json().catch(() => ({})));
-  if (!body.success) throw badRequest("请求体无效");
-  const user = c.get("user");
-  const meeting = await renameMeeting(user.id, c.req.param("id"), body.data.title);
-  return c.json({ meeting });
-});
-
 /**
- * Multipart upload:
- * - file: audio blob (required)
- * - meetingId: optional existing meeting
- * - title: optional title when creating new meeting
- * - source: upload | browser
+ * Multipart upload (static path before /:id)
  */
 meetingRoutes.post("/upload", async (c) => {
   ensureMediaDirs();
@@ -80,7 +66,8 @@ meetingRoutes.post("/upload", async (c) => {
     userId: user.id,
     meetingId,
     title,
-    filename: blob.name || (source === "browser" ? "browser-recording.webm" : "upload.bin"),
+    filename:
+      blob.name || (source === "browser" ? "browser-recording.webm" : "upload.bin"),
     mimeType: blob.type || "application/octet-stream",
     bytes: buf,
     source,
@@ -93,4 +80,72 @@ meetingRoutes.post("/upload", async (c) => {
     },
     201,
   );
+});
+
+meetingRoutes.get("/:id", async (c) => {
+  const user = c.get("user");
+  const meeting = await getMeeting(user.id, c.req.param("id"));
+  return c.json({ meeting });
+});
+
+meetingRoutes.patch("/:id", async (c) => {
+  const body = z
+    .object({ title: z.string().min(1) })
+    .safeParse(await c.req.json().catch(() => ({})));
+  if (!body.success) throw badRequest("请求体无效");
+  const user = c.get("user");
+  const meeting = await renameMeeting(user.id, c.req.param("id"), body.data.title);
+  return c.json({ meeting });
+});
+
+meetingRoutes.get("/:id/minutes", async (c) => {
+  const user = c.get("user");
+  const minutes = await getMinutes(user.id, c.req.param("id"));
+  return c.json({ minutes });
+});
+
+meetingRoutes.post("/:id/minutes/generate", async (c) => {
+  const user = c.get("user");
+  const minutes = await generateMinutesForMeeting(c.req.param("id"), user.id);
+  return c.json({ minutes });
+});
+
+meetingRoutes.put("/:id/minutes", async (c) => {
+  const body = z
+    .object({ markdown: z.string() })
+    .safeParse(await c.req.json().catch(() => ({})));
+  if (!body.success) throw badRequest("请求体无效");
+  const user = c.get("user");
+  const minutes = await saveMinutesMarkdown(
+    user.id,
+    c.req.param("id"),
+    body.data.markdown,
+  );
+  return c.json({ minutes });
+});
+
+meetingRoutes.get("/:id/export.md", async (c) => {
+  const user = c.get("user");
+  const includeTranscript = c.req.query("transcript") === "1";
+  const file = await exportMarkdown(user.id, c.req.param("id"), includeTranscript);
+  return new Response(file.content, {
+    status: 200,
+    headers: {
+      "content-type": "text/markdown; charset=utf-8",
+      "content-disposition": `attachment; filename*=UTF-8''${encodeURIComponent(file.filename)}`,
+    },
+  });
+});
+
+meetingRoutes.get("/:id/export.pdf", async (c) => {
+  const user = c.get("user");
+  const includeTranscript = c.req.query("transcript") === "1";
+  const file = await exportPdf(user.id, c.req.param("id"), includeTranscript);
+  return new Response(Buffer.from(file.bytes), {
+    status: 200,
+    headers: {
+      "content-type": "application/pdf",
+      "content-disposition": `attachment; filename*=UTF-8''${encodeURIComponent(file.filename)}`,
+    },
+  });
 });

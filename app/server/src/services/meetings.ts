@@ -20,6 +20,7 @@ export type MeetingListItem = {
   title: string;
   status: string;
   summary: string;
+  minutesStatus: string;
   createdAt: string;
   updatedAt: string;
   latestJobStatus: string | null;
@@ -52,6 +53,8 @@ export type MeetingDetail = MeetingListItem & {
     endMs: number;
     text: string;
   }>;
+  minutesMarkdown: string;
+  minutes: unknown | null;
 };
 
 function iso(d: Date | null | undefined): string | null {
@@ -65,6 +68,7 @@ function toListItem(m: Meeting, latestJobStatus: string | null): MeetingListItem
     title: m.title,
     status: m.status,
     summary: m.summary,
+    minutesStatus: m.minutesStatus ?? "none",
     createdAt: m.createdAt.toISOString(),
     updatedAt: m.updatedAt.toISOString(),
     latestJobStatus,
@@ -153,6 +157,16 @@ export async function getMeeting(
       endMs: s.endMs,
       text: s.text,
     })),
+    minutesMarkdown: m.minutesMarkdown || "",
+    minutes: m.minutesJson
+      ? (() => {
+          try {
+            return JSON.parse(m.minutesJson);
+          } catch {
+            return null;
+          }
+        })()
+      : null,
   };
 }
 
@@ -172,6 +186,9 @@ export async function createMeeting(
     title: t,
     status: "draft",
     summary: "",
+    minutesStatus: "none",
+    minutesJson: null,
+    minutesMarkdown: "",
     createdAt: now,
     updatedAt: now,
   });
@@ -182,6 +199,9 @@ export async function createMeeting(
       title: t,
       status: "draft",
       summary: "",
+      minutesStatus: "none",
+      minutesJson: null,
+      minutesMarkdown: "",
       createdAt: now,
       updatedAt: now,
     },

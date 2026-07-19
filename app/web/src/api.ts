@@ -17,6 +17,7 @@ export type MeetingListItem = {
   title: string;
   status: string;
   summary: string;
+  minutesStatus: string;
   createdAt: string;
   updatedAt: string;
   latestJobStatus: string | null;
@@ -51,6 +52,8 @@ export type MeetingDetail = MeetingListItem & {
     finishedAt: string | null;
   }>;
   transcript: TranscriptLine[];
+  minutesMarkdown: string;
+  minutes: unknown | null;
 };
 
 export type ApiError = {
@@ -155,4 +158,17 @@ export function formatTime(ms: number): string {
   const m = Math.floor(totalSec / 60);
   const s = totalSec % 60;
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+export function generateMinutes(meetingId: string) {
+  return api<{ minutes: unknown }>(`/api/meetings/${meetingId}/minutes/generate`, {
+    method: "POST",
+  });
+}
+
+export function saveMinutes(meetingId: string, markdown: string) {
+  return api<{ minutes: unknown }>(`/api/meetings/${meetingId}/minutes`, {
+    method: "PUT",
+    body: JSON.stringify({ markdown }),
+  });
 }

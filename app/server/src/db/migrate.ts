@@ -36,6 +36,9 @@ export async function migrate(): Promise<void> {
       title TEXT NOT NULL,
       status TEXT NOT NULL DEFAULT 'draft',
       summary TEXT NOT NULL DEFAULT '',
+      minutes_status TEXT NOT NULL DEFAULT 'none',
+      minutes_json TEXT,
+      minutes_markdown TEXT NOT NULL DEFAULT '',
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     );
@@ -89,6 +92,24 @@ export async function migrate(): Promise<void> {
 
     CREATE INDEX IF NOT EXISTS segments_meeting_id_idx ON transcript_segments(meeting_id);
   `);
+
+  // Additive migrations for DBs created before S2
+  await addColumnIfMissing(client, "meetings", "minutes_status", "TEXT NOT NULL DEFAULT 'none'");
+  await addColumnIfMissing(client, "meetings", "minutes_json", "TEXT");
+  await addColumnIfMissing(client, "meetings", "minutes_markdown", "TEXT NOT NULL DEFAULT ''");
+}
+
+async function addColumnIfMissing(
+  client: { execute: (q: string) => Promise<unknown> },
+  table: string,
+  column: string,
+  def: string,
+) {
+  try {
+    await client.execute(`ALTER TABLE ${table} ADD COLUMN ${column} ${def}`);
+  } catch {
+    // already exists
+  }
 }
 
 const isDirectRun =

@@ -33,6 +33,10 @@ export const meetings = sqliteTable("meetings", {
   /** draft | processing | ready | failed */
   status: text("status").notNull().default("draft"),
   summary: text("summary").notNull().default(""),
+  /** none | generating | ready | failed */
+  minutesStatus: text("minutes_status").notNull().default("none"),
+  minutesJson: text("minutes_json"),
+  minutesMarkdown: text("minutes_markdown").notNull().default(""),
   createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
 });

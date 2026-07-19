@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { formatTime, getMeeting, type MeetingDetail } from "../api";
+import {
+  formatTime,
+  generateMinutes,
+  getMeeting,
+  saveMinutes,
+  type MeetingDetail,
+} from "../api";
 
 type Tab = "minutes" | "transcript" | "insights";
 
@@ -8,8 +14,12 @@ export function MeetingDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [meeting, setMeeting] = useState<MeetingDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<Tab>("transcript");
+  const [tab, setTab] = useState<Tab>("minutes");
   const [groupBy, setGroupBy] = useState<"time" | "speaker">("time");
+  const [editMd, setEditMd] = useState("");
+  const [editing, setEditing] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     if (!id) return;
@@ -20,7 +30,10 @@ export function MeetingDetailPage() {
     }
     setError(null);
     setMeeting(res.data.meeting);
-  }, [id]);
+    if (!editing) {
+      setEditMd(res.data.meeting.minutesMarkdown || "");
+    }
+  }, [id, editing]);
 
   useEffect(() => {
     void refresh();
@@ -28,13 +41,50 @@ export function MeetingDetailPage() {
 
   useEffect(() => {
     if (!meeting) return;
-    const busy =
+    const busyJob =
       meeting.status === "processing" ||
+      meeting.minutesStatus === "generating" ||
       meeting.jobs.some((j) => j.status === "queued" || j.status === "running");
-    if (!busy) return;
+    if (!busyJob) return;
     const t = setInterval(() => void refresh(), 1000);
     return () => clearInterval(t);
   }, [meeting, refresh]);
+
+  async function onRegenerate() {
+    if (!id) return;
+    setBusy(true);
+    setMsg(null);
+    try {
+      const res = await generateMinutes(id);
+      if (!res.ok) {
+        setMsg(res.data.message || "生成失败");
+        return;
+      }
+      setEditing(false);
+      await refresh();
+      setMsg("纪要已重新生成");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onSave() {
+    if (!id) return;
+    setBusy(true);
+    setMsg(null);
+    try {
+      const res = await saveMinutes(id, editMd);
+      if (!res.ok) {
+        setMsg(res.data.message || "保存失败");
+        return;
+      }
+      setEditing(false);
+      await refresh();
+      setMsg("已保存");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   if (error) {
     return (
@@ -72,7 +122,22 @@ export function MeetingDetailPage() {
           <p className="muted caption">
             状态：{meeting.status}
             {job ? ` · Job ${job.status} (${job.engine})` : ""}
+            {` · 纪要 ${meeting.minutesStatus}`}
           </p>
+        </div>
+        <div className="row gap wrap">
+          <a className="btn btn-ghost" href={`/api/meetings/${meeting.id}/export.md`}>
+            导出 MD
+          </a>
+          <a
+            className="btn btn-ghost"
+            href={`/api/meetings/${meeting.id}/export.md?transcript=1`}
+          >
+            MD+原文
+          </a>
+          <a className="btn btn-primary" href={`/api/meetings/${meeting.id}/export.pdf`}>
+            导出 PDF
+          </a>
         </div>
       </header>
 
@@ -100,18 +165,80 @@ export function MeetingDetailPage() {
         </button>
       </div>
 
+      {msg ? <p className="form-ok">{msg}</p> : null}
+
       {tab === "minutes" ? (
         <section className="card stack">
-          <h2 className="title-sm">纪要</h2>
-          <p className="muted">
-            转写成功后的 <strong>Auto Minutes</strong> 将在 S2 接入。当前可先阅读原文。
-          </p>
-          {meeting.summary ? (
-            <p>
-              <span className="muted">摘要预览：</span>
-              {meeting.summary}
-            </p>
+          <div className="row gap wrap" style={{ justifyContent: "space-between" }}>
+            <h2 className="title-sm">纪要</h2>
+            <div className="row gap wrap">
+              <button
+                type="button"
+                className="btn btn-ghost"
+                disabled={busy || meeting.transcript.length === 0}
+                onClick={() => void onRegenerate()}
+              >
+                重新生成
+              </button>
+              {!editing ? (
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={!meeting.minutesMarkdown && meeting.minutesStatus !== "ready"}
+                  onClick={() => {
+                    setEditMd(meeting.minutesMarkdown || "");
+                    setEditing(true);
+                  }}
+                >
+                  编辑
+                </button>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    onClick={() => {
+                      setEditing(false);
+                      setEditMd(meeting.minutesMarkdown || "");
+                    }}
+                  >
+                    取消
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    disabled={busy}
+                    onClick={() => void onSave()}
+                  >
+                    保存
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+
+          {meeting.minutesStatus === "generating" ? (
+            <p className="muted">正在生成纪要…</p>
           ) : null}
+          {meeting.minutesStatus === "failed" ? (
+            <p className="form-error">自动纪要失败，可点「重新生成」</p>
+          ) : null}
+          {meeting.minutesStatus === "none" && meeting.status !== "ready" ? (
+            <p className="muted">转写完成后将自动生成纪要。</p>
+          ) : null}
+
+          {editing ? (
+            <textarea
+              className="minutes-editor"
+              value={editMd}
+              onChange={(e) => setEditMd(e.target.value)}
+              rows={18}
+            />
+          ) : meeting.minutesMarkdown ? (
+            <pre className="minutes-view">{meeting.minutesMarkdown}</pre>
+          ) : (
+            <p className="muted">暂无纪要内容</p>
+          )}
         </section>
       ) : null}
 

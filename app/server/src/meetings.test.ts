@@ -120,6 +120,26 @@ describe("meetings + upload + mock transcript", () => {
     assert.ok(body.meeting.transcript.some((s) => s.speaker.startsWith("Speaker")));
     assert.equal(body.meeting.jobs[0]?.status, "succeeded");
     assert.equal(body.meeting.jobs[0]?.engine, "mock");
+    // Auto minutes (mock LLM path when no API key)
+    assert.equal(body.meeting.minutesStatus, "ready");
+    assert.ok(String(body.meeting.minutesMarkdown || "").includes("纪要"));
+
+    const md = await app.request(`/api/meetings/${upBody.meeting.id}/export.md`, {
+      headers: { cookie: `${config.cookieName}=${cookieA}` },
+    });
+    assert.equal(md.status, 200);
+    const mdText = await md.text();
+    assert.ok(mdText.includes("S1 演示会") || mdText.includes("纪要"));
+
+    const pdf = await app.request(`/api/meetings/${upBody.meeting.id}/export.pdf`, {
+      headers: { cookie: `${config.cookieName}=${cookieA}` },
+    });
+    assert.equal(pdf.status, 200);
+    assert.equal(pdf.headers.get("content-type"), "application/pdf");
+    const pdfBuf = new Uint8Array(await pdf.arrayBuffer());
+    assert.ok(pdfBuf.byteLength > 100);
+    // PDF magic
+    assert.equal(String.fromCharCode(pdfBuf[0], pdfBuf[1], pdfBuf[2], pdfBuf[3]), "%PDF");
 
     const list = await app.request("/api/meetings", {
       headers: { cookie: `${config.cookieName}=${cookieA}` },

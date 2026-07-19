@@ -565,3 +565,25 @@ button {
   color: var(--body-strong);
   line-height: 1.6;
 }
+
+.minutes-view {
+  margin: 0;
+  white-space: pre-wrap;
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--body-strong);
+}
+
+.minutes-editor {
+  width: 100%;
+  min-height: 320px;
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--hairline);
+  background: var(--canvas);
+  font-family: ui-monospace, "JetBrains Mono", monospace;
+  font-size: 13px;
+  line-height: 1.55;
+  resize: vertical;
+}

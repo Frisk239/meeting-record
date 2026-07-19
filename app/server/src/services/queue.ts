@@ -165,9 +165,27 @@ async function runJob(jobId: string): Promise<void> {
     .set({
       status: "ready",
       summary: preview,
+      minutesStatus: "generating",
       updatedAt: finishedAt,
     })
     .where(eq(meetings.id, job.meetingId));
+
+  // Auto Minutes after successful transcription (ADR / product P0)
+  try {
+    const { generateMinutesForMeeting } = await import("./minutes.js");
+    await generateMinutesForMeeting(job.meetingId, job.userId);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    await db
+      .update(meetings)
+      .set({
+        minutesStatus: "failed",
+        updatedAt: new Date(),
+        summary: preview,
+      })
+      .where(eq(meetings.id, job.meetingId));
+    console.error("[auto-minutes]", job.meetingId, message);
+  }
 }
 
 export async function createJobForRecording(input: {
