@@ -141,6 +141,35 @@ describe("meetings + upload + mock transcript", () => {
     // PDF magic
     assert.equal(String.fromCharCode(pdfBuf[0], pdfBuf[1], pdfBuf[2], pdfBuf[3]), "%PDF");
 
+    const qa = await app.request(`/api/meetings/${upBody.meeting.id}/qa`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        cookie: `${config.cookieName}=${cookieA}`,
+      },
+      body: JSON.stringify({ question: "有哪些待办？" }),
+    });
+    assert.equal(qa.status, 201);
+    const qaBody = (await qa.json()) as { turns: Array<{ role: string }>; answer: string };
+    assert.ok(qaBody.answer.length > 0);
+    assert.ok(qaBody.turns.length >= 2);
+
+    const insights = await app.request(
+      `/api/meetings/${upBody.meeting.id}/insights/generate`,
+      {
+        method: "POST",
+        headers: { cookie: `${config.cookieName}=${cookieA}` },
+      },
+    );
+    assert.equal(insights.status, 200);
+    const insBody = (await insights.json()) as {
+      insights: { status: string; markdown: string };
+    };
+    assert.equal(insBody.insights.status, "ready");
+    assert.ok(insBody.insights.markdown.includes("外脑") || insBody.insights.markdown.length > 20);
+
+    // Insights must not auto-fill on upload path without explicit call — we called explicitly above.
+    // Verify list still user-scoped
     const list = await app.request("/api/meetings", {
       headers: { cookie: `${config.cookieName}=${cookieA}` },
     });

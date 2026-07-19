@@ -55,6 +55,8 @@ export type MeetingDetail = MeetingListItem & {
   }>;
   minutesMarkdown: string;
   minutes: unknown | null;
+  insightsStatus: string;
+  insightsMarkdown: string;
 };
 
 function iso(d: Date | null | undefined): string | null {
@@ -167,6 +169,8 @@ export async function getMeeting(
           }
         })()
       : null,
+    insightsStatus: m.insightsStatus || "none",
+    insightsMarkdown: m.insightsMarkdown || "",
   };
 }
 
@@ -189,6 +193,8 @@ export async function createMeeting(
     minutesStatus: "none",
     minutesJson: null,
     minutesMarkdown: "",
+    insightsStatus: "none",
+    insightsMarkdown: "",
     createdAt: now,
     updatedAt: now,
   });
@@ -202,6 +208,8 @@ export async function createMeeting(
       minutesStatus: "none",
       minutesJson: null,
       minutesMarkdown: "",
+      insightsStatus: "none",
+      insightsMarkdown: "",
       createdAt: now,
       updatedAt: now,
     },

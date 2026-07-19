@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
   formatTime,
+  generateInsights,
   generateMinutes,
   getMeeting,
   saveMinutes,
@@ -244,9 +245,45 @@ export function MeetingDetailPage() {
 
       {tab === "insights" ? (
         <section className="card stack">
-          <h2 className="title-sm">AI 外脑</h2>
-          <p className="muted">仅按需生成；本刀不自动生成。S4 实现。</p>
+          <div className="row gap wrap" style={{ justifyContent: "space-between" }}>
+            <h2 className="title-sm">AI 外脑</h2>
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={busy}
+              onClick={() => void (async () => {
+                if (!id) return;
+                setBusy(true);
+                setMsg(null);
+                try {
+                  const res = await generateInsights(id);
+                  if (!res.ok) {
+                    setMsg(res.data.message || "生成失败");
+                    return;
+                  }
+                  await refresh();
+                  setMsg("外脑已生成（仅本次显式触发）");
+                } finally {
+                  setBusy(false);
+                }
+              })()}
+            >
+              {meeting.insightsStatus === "ready" ? "重新生成" : "一键生成"}
+            </button>
+          </div>
+          <p className="muted caption">转写成功后不自动生成。仅在你点击时调用 LLM/mock。</p>
+          {meeting.insightsMarkdown ? (
+            <pre className="minutes-view">{meeting.insightsMarkdown}</pre>
+          ) : (
+            <p className="muted">尚未生成外脑内容。</p>
+          )}
         </section>
+      ) : null}
+
+      {tab === "minutes" ? (
+        <Link className="fab-ask" to={`/meetings/${meeting.id}/qa`}>
+          追问
+        </Link>
       ) : null}
 
       {tab === "transcript" ? (

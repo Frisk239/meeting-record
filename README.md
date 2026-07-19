@@ -10,7 +10,7 @@
 
 - 文档 / PRD / Claude DESIGN 已落地  
 - **可点击原型：** [`docs/design/prototype/mvp/`](./docs/design/prototype/mvp/)  
-- **应用：** `app/web` + `app/server` — **S0b 账号** + **S1 录音/上传/串行转写（mock ASR）/原文** 已通  
+- **应用：** `app/web` + `app/server` — **MVP 主闭环**（账号 · 录音/上传 · mock 转写+Speaker · Auto Minutes · 导出 MD/PDF · 追问 · 外脑按需）  
 - **栈：** TypeScript · Vite+React · Hono · Drizzle/SQLite（`@libsql/client` 本地文件）· **pnpm** · Python 仅 ASR 旁路（ADR 0009–0012）  
 
 ## 本地开发

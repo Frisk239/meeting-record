@@ -3,6 +3,7 @@ import { useAuth } from "./auth/AuthContext";
 import { AppShell } from "./components/AppShell";
 import { LoginPage } from "./pages/LoginPage";
 import { MeetingDetailPage } from "./pages/MeetingDetailPage";
+import { MeetingQaPage } from "./pages/MeetingQaPage";
 import { MeetingsPage } from "./pages/MeetingsPage";
 import { RecordPage } from "./pages/RecordPage";
 import { SettingsPage } from "./pages/SettingsPage";
@@ -55,6 +56,7 @@ export function App() {
         <Route index element={<MeetingsPage />} />
         <Route path="record" element={<RecordPage />} />
         <Route path="meetings/:id" element={<MeetingDetailPage />} />
+        <Route path="meetings/:id/qa" element={<MeetingQaPage />} />
         <Route path="me" element={<SettingsPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

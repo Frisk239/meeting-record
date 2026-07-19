@@ -54,6 +54,15 @@ export type MeetingDetail = MeetingListItem & {
   transcript: TranscriptLine[];
   minutesMarkdown: string;
   minutes: unknown | null;
+  insightsStatus: string;
+  insightsMarkdown: string;
+};
+
+export type QaTurn = {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  createdAt: string;
 };
 
 export type ApiError = {
@@ -171,4 +180,22 @@ export function saveMinutes(meetingId: string, markdown: string) {
     method: "PUT",
     body: JSON.stringify({ markdown }),
   });
+}
+
+export function listQa(meetingId: string) {
+  return api<{ turns: QaTurn[] }>(`/api/meetings/${meetingId}/qa`);
+}
+
+export function askQa(meetingId: string, question: string) {
+  return api<{ turns: QaTurn[]; answer: string }>(`/api/meetings/${meetingId}/qa`, {
+    method: "POST",
+    body: JSON.stringify({ question }),
+  });
+}
+
+export function generateInsights(meetingId: string) {
+  return api<{ insights: { status: string; markdown: string } }>(
+    `/api/meetings/${meetingId}/insights/generate`,
+    { method: "POST" },
+  );
 }

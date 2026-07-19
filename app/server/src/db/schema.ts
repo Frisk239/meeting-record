@@ -37,6 +37,9 @@ export const meetings = sqliteTable("meetings", {
   minutesStatus: text("minutes_status").notNull().default("none"),
   minutesJson: text("minutes_json"),
   minutesMarkdown: text("minutes_markdown").notNull().default(""),
+  /** none | ready | failed — Insights only after explicit generate */
+  insightsStatus: text("insights_status").notNull().default("none"),
+  insightsMarkdown: text("insights_markdown").notNull().default(""),
   createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
 });
@@ -98,9 +101,24 @@ export const transcriptSegments = sqliteTable("transcript_segments", {
   confidence: real("confidence"),
 });
 
+/** Meeting Q&A turns — sub-page of Minutes, not auto-generated. */
+export const qaMessages = sqliteTable("qa_messages", {
+  id: text("id").primaryKey(),
+  meetingId: text("meeting_id")
+    .notNull()
+    .references(() => meetings.id, { onDelete: "cascade" }),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  role: text("role").notNull(), // user | assistant
+  content: text("content").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+});
+
 export type User = typeof users.$inferSelect;
 export type Session = typeof sessions.$inferSelect;
 export type Meeting = typeof meetings.$inferSelect;
 export type Recording = typeof recordings.$inferSelect;
 export type TranscriptionJob = typeof transcriptionJobs.$inferSelect;
 export type TranscriptSegment = typeof transcriptSegments.$inferSelect;
+export type QaMessage = typeof qaMessages.$inferSelect;

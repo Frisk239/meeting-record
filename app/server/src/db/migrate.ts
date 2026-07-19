@@ -39,6 +39,8 @@ export async function migrate(): Promise<void> {
       minutes_status TEXT NOT NULL DEFAULT 'none',
       minutes_json TEXT,
       minutes_markdown TEXT NOT NULL DEFAULT '',
+      insights_status TEXT NOT NULL DEFAULT 'none',
+      insights_markdown TEXT NOT NULL DEFAULT '',
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     );
@@ -91,12 +93,24 @@ export async function migrate(): Promise<void> {
     );
 
     CREATE INDEX IF NOT EXISTS segments_meeting_id_idx ON transcript_segments(meeting_id);
+
+    CREATE TABLE IF NOT EXISTS qa_messages (
+      id TEXT PRIMARY KEY NOT NULL,
+      meeting_id TEXT NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      role TEXT NOT NULL,
+      content TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS qa_meeting_id_idx ON qa_messages(meeting_id);
   `);
 
-  // Additive migrations for DBs created before S2
   await addColumnIfMissing(client, "meetings", "minutes_status", "TEXT NOT NULL DEFAULT 'none'");
   await addColumnIfMissing(client, "meetings", "minutes_json", "TEXT");
   await addColumnIfMissing(client, "meetings", "minutes_markdown", "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing(client, "meetings", "insights_status", "TEXT NOT NULL DEFAULT 'none'");
+  await addColumnIfMissing(client, "meetings", "insights_markdown", "TEXT NOT NULL DEFAULT ''");
 }
 
 async function addColumnIfMissing(

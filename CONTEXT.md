@@ -147,17 +147,15 @@ _Avoid_: 首版 Postgres/多节点对象存储；无数据库的纯散落文件�
 
 ## 当前方位（2026-07-19）
 
-- **阶段：** S0b + S1 + **S2 Auto Minutes/导出** 已合 main（ASR/LLM 默认可 mock 演示）  
+- **阶段：** **MVP 主闭环已在真栈可演示**（S0b–S4；ASR/LLM 默认可 mock）  
 - **工程：** Slice Owner · [workflow](docs/agents/workflow.md) · **main 直推**（ADR 0008）  
-- **参考：** [catalog](docs/design/reference/catalog.md)  
-- **上一刀：** **S2 纪要通路** — [`docs/progress/s2-auto-minutes-export-impl-1.md`](docs/progress/s2-auto-minutes-export-impl-1.md)  
-- **再上：** S1 [`s1-capture-transcribe-impl-1`](docs/progress/s1-capture-transcribe-impl-1.md) · S0b [`s0b-auth-settings-impl-1`](docs/progress/s0b-auth-settings-impl-1.md)  
-- **应用代码：** `app/web` + `app/server`（pnpm monorepo）  
-- **Store 注记：** Drizzle + **`@libsql/client` 本地 SQLite** + `DATA_DIR/media`  
-- **已定形态：** 自托管 Web · 现场麦录音 · Auto Minutes · 追问子页 · 外脑按需 · MD+PDF · 磁盘+SQLite · Context Pack · **显示名 Meeting Record（可配）**  
-- **PRD / Spec：** [`.scratch/meeting-record-mvp/spec.md`](.scratch/meeting-record-mvp/spec.md)  
-- **可点击原型：** [`docs/design/prototype/mvp/`](docs/design/prototype/mvp/)  
-- **下一步建议：** **S3 追问子页** → **S4 外脑按需**；并行可接 FunASR 旁路  
+- **上一刀：** **S3+S4 追问/外脑** — [`docs/progress/s3s4-qa-insights-impl-1.md`](docs/progress/s3s4-qa-insights-impl-1.md)  
+- **已交付切片：** S0b 账号 · S1 采集转写 · S2 纪要导出 · S3 追问 · S4 外脑按需  
+- **应用：** `app/web` + `app/server`  
+- **Store：** Drizzle + `@libsql/client` 本地 SQLite + `DATA_DIR/media`  
+- **P0 债务（有意/环境）：** FunASR 旁路未接（mock ASR port）；PDF CJK 字体视本机 TTF；Playwright 未跑  
+- **下一步建议：** FunASR CPU 旁路接线 · 原文播放 · Playwright 主路径 · polish  
+  
 
 ## 相关入口
 

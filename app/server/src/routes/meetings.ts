@@ -10,11 +10,13 @@ import {
   listMeetings,
   renameMeeting,
 } from "../services/meetings.js";
+import { generateInsights, getInsights } from "../services/insights.js";
 import {
   generateMinutesForMeeting,
   getMinutes,
   saveMinutesMarkdown,
 } from "../services/minutes.js";
+import { askQuestion, listQa } from "../services/qa.js";
 import { ensureMediaDirs } from "../services/storage.js";
 
 export const meetingRoutes = new Hono<{ Variables: AuthVariables }>();
@@ -122,6 +124,34 @@ meetingRoutes.put("/:id/minutes", async (c) => {
     body.data.markdown,
   );
   return c.json({ minutes });
+});
+
+meetingRoutes.get("/:id/qa", async (c) => {
+  const user = c.get("user");
+  const turns = await listQa(user.id, c.req.param("id"));
+  return c.json({ turns });
+});
+
+meetingRoutes.post("/:id/qa", async (c) => {
+  const body = z
+    .object({ question: z.string().min(1) })
+    .safeParse(await c.req.json().catch(() => ({})));
+  if (!body.success) throw badRequest("请求体无效");
+  const user = c.get("user");
+  const result = await askQuestion(user.id, c.req.param("id"), body.data.question);
+  return c.json(result, 201);
+});
+
+meetingRoutes.get("/:id/insights", async (c) => {
+  const user = c.get("user");
+  const insights = await getInsights(user.id, c.req.param("id"));
+  return c.json({ insights });
+});
+
+meetingRoutes.post("/:id/insights/generate", async (c) => {
+  const user = c.get("user");
+  const insights = await generateInsights(user.id, c.req.param("id"));
+  return c.json({ insights });
 });
 
 meetingRoutes.get("/:id/export.md", async (c) => {
