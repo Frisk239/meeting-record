@@ -27,7 +27,14 @@ export function createApp() {
       ok: true,
       appName: config.appName,
       asrEngine: config.asrEngine,
+      asrFallbackMock: config.asrFallbackMock,
       maxRecordingMinutes: config.maxRecordingMinutes,
+      funasr: {
+        model: config.funasrModel,
+        vad: config.funasrVad,
+        spk: config.funasrSpk,
+        device: config.funasrDevice,
+      },
     }),
   );
 

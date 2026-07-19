@@ -8,7 +8,8 @@
 |---|---|---|---|
 | S0 | 文档与选型底座 | 文档/reference/DESIGN/ADR 可导航 | **done**（工程文档，非产品功能） |
 | S0b | 账号与设置 | 注册登录 · LLM 三字段配置页 · API 鉴权 | **done**（`docs/progress/s0b-auth-settings-impl-1.md`） |
-| S1 | 转写通路 | 上传或**浏览器录音自动上传** → CPU 转写+Speaker → 打开全文 | **done**（mock ASR；`s1-capture-transcribe-impl-1`） |
+| S1 | 转写通路 | 上传或**浏览器录音自动上传** → CPU 转写+Speaker → 打开全文 | **done**（mock；`s1-capture-transcribe-impl-1`） |
+| S1b | FunASR 旁路 | `ASR_ENGINE=funasr` → Python SenseVoice+VAD+CAM++ → 真 Speaker 原文 | **done**（接线；`s1b-funasr-sidecar-impl-1`） |
 | S2 | 纪要通路 | 转写成功 → **自动** AI总结 → 编辑 → **导出 MD/PDF** | **done**（`s2-auto-minutes-export-impl-1`） |
 | S3 | 追问子页 | 纪要右下角进入；基于本场原文/纪要提问作答 | **done**（`s3s4-qa-insights-impl-1`） |
 | S4 | 外脑按需 | 详情外脑 Tab；显式生成，不自动 | **done**（同 `s3s4-qa-insights-impl-1`） |

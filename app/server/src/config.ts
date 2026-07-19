@@ -24,12 +24,26 @@ export const config = {
   cookieName: "mr_session",
   maxRecordingMinutes: Number(process.env.MAX_RECORDING_MINUTES ?? 60),
   /**
-   * ASR engine: "mock" (default, no Python) | future "funasr"
-   * Real FunASR sidecar is a follow-up; pipeline port is stable.
+   * ASR engine: "mock" | "funasr"
+   * funasr requires workers/asr Python venv (see workers/asr/README.md).
    */
   asrEngine: (process.env.ASR_ENGINE?.trim() || "mock") as "mock" | "funasr",
-  /** Mock job artificial delay (ms) so UI can show processing state. */
+  /** When funasr fails, degrade to mock (default false — fail the job loudly). */
+  asrFallbackMock: boolEnv("ASR_FALLBACK_MOCK", false),
+  /** Mock job artificial delay (ms). */
   mockAsrDelayMs: Number(process.env.MOCK_ASR_DELAY_MS ?? 800),
+  /** Python executable for FunASR worker */
+  asrWorkerPython: process.env.ASR_WORKER_PYTHON?.trim() || "python",
+  asrWorkerScript: process.env.ASR_WORKER_SCRIPT?.trim() || "",
+  /** Optional full "python path/to/worker.py" override */
+  asrWorkerCmd: process.env.ASR_WORKER_CMD?.trim() || "",
+  asrWorkerTimeoutMs: Number(process.env.ASR_WORKER_TIMEOUT_MS ?? 30 * 60 * 1000),
+  funasrModel: process.env.FUNASR_MODEL?.trim() || "iic/SenseVoiceSmall",
+  funasrVad: process.env.FUNASR_VAD?.trim() || "fsmn-vad",
+  funasrSpk: process.env.FUNASR_SPK?.trim() ?? "cam++",
+  funasrDevice: process.env.FUNASR_DEVICE?.trim() || "cpu",
+  funasrHub: process.env.FUNASR_HUB?.trim() || "ms",
+  funasrBatchSizeS: Number(process.env.FUNASR_BATCH_SIZE_S ?? 60),
   /** Deploy-default LLM (user settings override when set) */
   llm: {
     baseUrl: process.env.LLM_BASE_URL?.trim() || "",

@@ -147,14 +147,14 @@ _Avoid_: 首版 Postgres/多节点对象存储；无数据库的纯散落文件�
 
 ## 当前方位（2026-07-19）
 
-- **阶段：** **MVP 主闭环已在真栈可演示**（S0b–S4；ASR/LLM 默认可 mock）  
+- **阶段：** MVP 主闭环 + **FunASR 旁路已接线**（默认仍 mock；生产设 `ASR_ENGINE=funasr`）  
 - **工程：** Slice Owner · [workflow](docs/agents/workflow.md) · **main 直推**（ADR 0008）  
-- **上一刀：** **S3+S4 追问/外脑** — [`docs/progress/s3s4-qa-insights-impl-1.md`](docs/progress/s3s4-qa-insights-impl-1.md)  
-- **已交付切片：** S0b 账号 · S1 采集转写 · S2 纪要导出 · S3 追问 · S4 外脑按需  
-- **应用：** `app/web` + `app/server`  
+- **上一刀：** **S1b FunASR sidecar** — [`docs/progress/s1b-funasr-sidecar-impl-1.md`](docs/progress/s1b-funasr-sidecar-impl-1.md)  
+- **已交付：** S0b–S4 产品路径 · `workers/asr` CPU 旁路（SenseVoice+VAD+CAM++）  
+- **应用：** `app/web` + `app/server` + `workers/asr`  
 - **Store：** Drizzle + `@libsql/client` 本地 SQLite + `DATA_DIR/media`  
-- **P0 债务（有意/环境）：** FunASR 旁路未接（mock ASR port）；PDF CJK 字体视本机 TTF；Playwright 未跑  
-- **下一步建议：** FunASR CPU 旁路接线 · 原文播放 · Playwright 主路径 · polish  
+- **债务：** 本机需 pip 装 torch/funasr 与首下模型；PDF CJK；Playwright；4G 实测 RTF  
+- **下一步建议：** 装好 venv 后用真实 wav 验收 · Playwright · 原文播放  
   
 
 ## 相关入口

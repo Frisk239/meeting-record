@@ -2,6 +2,7 @@ import { and, asc, eq, inArray } from "drizzle-orm";
 import { openDb } from "../db/client.js";
 import { meetings, recordings, transcriptSegments, transcriptionJobs } from "../db/schema.js";
 import { newId } from "../lib/crypto.js";
+import { config } from "../config.js";
 import { getAsrEngine } from "./asr/index.js";
 
 /**
@@ -202,7 +203,7 @@ export async function createJobForRecording(input: {
     recordingId: input.recordingId,
     userId: input.userId,
     status: "queued",
-    engine: "mock",
+    engine: config.asrEngine,
     errorMessage: "",
     createdAt: now,
     startedAt: null,

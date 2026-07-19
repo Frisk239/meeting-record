@@ -10,16 +10,20 @@
 
 - 文档 / PRD / Claude DESIGN 已落地  
 - **可点击原型：** [`docs/design/prototype/mvp/`](./docs/design/prototype/mvp/)  
-- **应用：** `app/web` + `app/server` — **MVP 主闭环**（账号 · 录音/上传 · mock 转写+Speaker · Auto Minutes · 导出 MD/PDF · 追问 · 外脑按需）  
-- **栈：** TypeScript · Vite+React · Hono · Drizzle/SQLite（`@libsql/client` 本地文件）· **pnpm** · Python 仅 ASR 旁路（ADR 0009–0012）  
+- **应用：** `app/web` + `app/server` + `workers/asr` — **MVP 主闭环**；转写默认 mock，可开 **FunASR CPU**（见 `workers/asr/README.md`）  
+- **栈：** TypeScript · Vite+React · Hono · Drizzle/SQLite（`@libsql/client`）· **pnpm** · Python FunASR 旁路（ADR 0009–0012）  
 
 ## 本地开发
 
 ```bash
-cp .env.example .env   # 按需改 ALLOW_REGISTER / SESSION_SECRET / LLM_*
+cp .env.example .env   # 按需改 ALLOW_REGISTER / SESSION_SECRET / LLM_* / ASR_ENGINE
 pnpm install
 pnpm dev               # Web http://127.0.0.1:5173 · API http://127.0.0.1:8787
-pnpm test              # 服务端 auth 路径测试
+pnpm test
+
+# 真转写（可选，需 Python venv，见 workers/asr/README.md）:
+# ASR_ENGINE=funasr
+# ASR_WORKER_PYTHON=workers/asr/.venv/Scripts/python.exe
 ```
 
 ## 目录速览

@@ -26,6 +26,7 @@
 | `docs/progress/` | 切片 intake / closeout 证据 | Owner 关刀与跨刀必写；`app/` 落地后可迁 `app/.progress/` |
 | `.scratch/` | 本地 spec / tickets 草稿 | 一 feature 一目录；正式工单以 GitHub Issues 为准 |
 | `app/web` · `app/server` | 应用代码（Vite/React · Hono） | **Slice Owner**；默认 **main**（ADR 0008） |
+| `workers/asr` | FunASR CPU 旁路（Python） | 仅 ASR；勿改成第二业务后端 |
 
 ## 工程模式（最高优先级）
 

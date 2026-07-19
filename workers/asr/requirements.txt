@@ -1,0 +1,10 @@
+# FunASR CPU sidecar (ADR 0004). Install into a venv — do not mix into Node.
+# torch CPU wheels are large; use the official CPU index if needed:
+#   pip install torch --index-url https://download.pytorch.org/whl/cpu
+#   pip install -r requirements.txt
+funasr>=1.1.12
+modelscope>=1.11.0
+torch
+torchaudio
+numpy
+soundfile

@@ -44,6 +44,12 @@ pnpm-debug.log*
 *.bin
 !package-lock.json
 
+# Python ASR worker venv / caches
+workers/asr/.venv/
+workers/**/__pycache__/
+**/.pytest_cache/
+*.pyc
+
 # Upstream reference clones (independent git repos — do not commit)
 docs/design/reference/repos/*/
 !docs/design/reference/repos/README.md
