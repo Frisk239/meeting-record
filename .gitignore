@@ -20,6 +20,7 @@ app/server/data/
 
 # Playwright / agent runtime junk
 .playwright-cli/
+**/.playwright-cli/
 .playwright-mcp/
 .tmp-*/
 .scratch/**/tmp/

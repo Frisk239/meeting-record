@@ -282,7 +282,7 @@ export function RecordPage() {
       </section>
 
       <p className="muted caption">
-        也可在笔记页「导入音频」。转写引擎当前为 mock（含 Speaker 标签），FunASR 旁路后续接入。
+        也可在笔记页「导入音频」。默认 mock ASR；生产设 ASR_ENGINE=funasr 使用 CPU FunASR 旁路。
       </p>
       <Link className="btn btn-ghost" to="/">
         返回笔记
