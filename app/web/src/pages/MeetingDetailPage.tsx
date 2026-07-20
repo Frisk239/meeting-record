@@ -10,6 +10,7 @@ import {
   generateMinutes,
   getMeeting,
   meetingAudioUrl,
+  retranscribeMeeting,
   saveMinutesDoc,
   uploadRecording,
   type MeetingDetail,
@@ -201,6 +202,24 @@ export function MeetingDetailPage() {
       }
       await refresh();
       setMsg("纪要已重新生成");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onRetranscribe() {
+    if (!id) return;
+    setBusy(true);
+    setMsg(null);
+    try {
+      const res = await retranscribeMeeting(id);
+      if (!res.ok) {
+        setMsg(res.data.message || "重新转写失败");
+        return;
+      }
+      await refresh();
+      setMsg("已重新排队转写，完成后原文将更新");
+      setTab("transcript");
     } finally {
       setBusy(false);
     }
@@ -645,6 +664,23 @@ export function MeetingDetailPage() {
 
       {tab === "transcript" ? (
         <section className="card stack">
+          <div className="row gap wrap" style={{ justifyContent: "space-between" }}>
+            <h2 className="title-sm">原文</h2>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              disabled={
+                busy ||
+                isTranscribing(meeting) ||
+                meeting.recordings.length === 0
+              }
+              onClick={() => void onRetranscribe()}
+              title="用已有录音重新跑 FunASR（修复乱码后可点此刷新原文）"
+            >
+              重新转写
+            </button>
+          </div>
+
           <div className="player">
             <button type="button" className="icon-btn" onClick={togglePlay} aria-label="播放">
               {playing ? "❚❚" : "▶"}

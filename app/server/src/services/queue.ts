@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { openDb } from "../db/client.js";
 import {
   meetings,
@@ -7,6 +7,7 @@ import {
   transcriptionJobs,
 } from "../db/schema.js";
 import { newId } from "../lib/crypto.js";
+import { badRequest, notFound } from "../lib/errors.js";
 import { config } from "../config.js";
 import { getAsrEngine } from "./asr/index.js";
 import {
@@ -355,6 +356,71 @@ export async function createJobForRecording(input: {
     .where(eq(meetings.id, input.meetingId));
   enqueueKick();
   return id;
+}
+
+/**
+ * Re-enqueue ASR for the latest (or specified) recording on a meeting.
+ * Cancels any active jobs first. Used to recover from encoding corruption
+ * without re-uploading audio.
+ */
+export async function retranscribeMeeting(
+  meetingId: string,
+  userId: string,
+  recordingId?: string,
+): Promise<{ jobId: string }> {
+  const db = openDb();
+  const mRows = await db
+    .select()
+    .from(meetings)
+    .where(and(eq(meetings.id, meetingId), eq(meetings.userId, userId)))
+    .limit(1);
+  if (!mRows[0]) throw notFound("会议不存在");
+
+  await cancelMeetingJobs(meetingId, userId);
+
+  let recId = recordingId;
+  if (!recId) {
+    const recs = await db
+      .select()
+      .from(recordings)
+      .where(and(eq(recordings.meetingId, meetingId), eq(recordings.userId, userId)))
+      .orderBy(desc(recordings.createdAt))
+      .limit(1);
+    if (!recs[0]) throw badRequest("没有可转写的录音");
+    recId = recs[0].id;
+  } else {
+    const recs = await db
+      .select()
+      .from(recordings)
+      .where(
+        and(
+          eq(recordings.id, recId),
+          eq(recordings.meetingId, meetingId),
+          eq(recordings.userId, userId),
+        ),
+      )
+      .limit(1);
+    if (!recs[0]) throw notFound("录音不存在");
+  }
+
+  // Reset minutes to regenerating after next ASR success
+  await db
+    .update(meetings)
+    .set({
+      minutesStatus: "none",
+      minutesJson: null,
+      minutesMarkdown: "",
+      summary: "",
+      updatedAt: new Date(),
+    })
+    .where(eq(meetings.id, meetingId));
+
+  const jobId = await createJobForRecording({
+    meetingId,
+    recordingId: recId,
+    userId,
+  });
+  return { jobId };
 }
 
 /**

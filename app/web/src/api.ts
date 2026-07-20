@@ -254,6 +254,18 @@ export function cancelMeetingJobs(meetingId: string) {
   }>(`/api/meetings/${meetingId}/jobs/cancel`, { method: "POST" });
 }
 
+/** Re-run FunASR on existing audio (no re-upload). */
+export function retranscribeMeeting(meetingId: string, recordingId?: string) {
+  return api<{
+    ok: boolean;
+    jobId: string;
+    meeting: MeetingDetail;
+  }>(`/api/meetings/${meetingId}/jobs/retranscribe`, {
+    method: "POST",
+    body: JSON.stringify(recordingId ? { recordingId } : {}),
+  });
+}
+
 /** Cookie-auth audio URL (same origin / Vite proxy). */
 export function meetingAudioUrl(meetingId: string, recordingId?: string | null): string {
   const q = recordingId ? `?recordingId=${encodeURIComponent(recordingId)}` : "";

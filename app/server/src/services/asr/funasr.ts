@@ -32,6 +32,12 @@ function resolveWorker(): { python: string; script: string } {
   };
 }
 
+/** Decode worker pipe bytes as UTF-8 (never rely on system console code page). */
+function decodeWorkerUtf8(chunk: Buffer | string): string {
+  if (typeof chunk === "string") return chunk;
+  return chunk.toString("utf8");
+}
+
 function parseWorkerJson(stdout: string): AsrResult {
   const text = stdout.trim();
   if (!text) {
@@ -70,6 +76,20 @@ function parseWorkerJson(stdout: string): AsrResult {
         text: String(s.text).trim(),
         confidence: s.confidence,
       }));
+    // Guard: Windows GBK→UTF-8 mis-decode leaves mass U+FFFD; fail loud if so
+    if (segments.length) {
+      const joined = segments.map((s) => s.text).join("");
+      const fffd = (joined.match(/\uFFFD/g) || []).length;
+      if (joined.length >= 20 && fffd / joined.length > 0.25) {
+        return {
+          engine: "funasr",
+          status: "failed",
+          segments: [],
+          errorMessage:
+            "transcript text encoding corrupted (U+FFFD). Worker stdout must be UTF-8; re-run after fixing PYTHONUTF8 / emit_json.",
+        };
+      }
+    }
     const status =
       raw.status === "succeeded" || raw.status === "degraded"
         ? raw.status
@@ -153,6 +173,9 @@ export class FunasrEngine implements AsrEngine {
           MKL_NUM_THREADS: process.env.MKL_NUM_THREADS || "4",
           ASR_NCPU: process.env.ASR_NCPU || "4",
           PYTHONUNBUFFERED: "1",
+          // Critical on Windows: worker must emit Chinese JSON as UTF-8, not GBK
+          PYTHONIOENCODING: "utf-8",
+          PYTHONUTF8: "1",
         },
         windowsHide: true,
       });
@@ -186,11 +209,11 @@ export class FunasrEngine implements AsrEngine {
         });
       }, timeoutMs);
 
-      child.stdout.on("data", (c) => {
-        stdout += String(c);
+      child.stdout.on("data", (c: Buffer | string) => {
+        stdout += decodeWorkerUtf8(c);
       });
-      child.stderr.on("data", (c) => {
-        const chunk = String(c);
+      child.stderr.on("data", (c: Buffer | string) => {
+        const chunk = decodeWorkerUtf8(c);
         stderr += chunk;
         if (stderr.length > 50_000) stderr = stderr.slice(-50_000);
 

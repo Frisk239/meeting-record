@@ -145,16 +145,17 @@ _Avoid_: 首版 Postgres/多节点对象存储；无数据库的纯散落文件�
 13. **Drizzle + better-sqlite3** 访问 SQLite（ADR 0011）  
 14. **pnpm** 包管理（ADR 0012）  
 
-## 当前方位（2026-07-19）
+## 当前方位（2026-07-20）
 
-- **阶段：** **原型 MVP 功能对齐已合本地 main**（S5 分块纪要/播放器/追加/个人资料）  
+- **阶段：** MVP 主路径可用；**原文乱码（Windows GBK pipe）已修**  
 - **工程：** Slice Owner · push 由人手动  
-- **上一刀：** S5 原型对齐 — [`docs/progress/s5-prototype-parity-impl-1.md`](docs/progress/s5-prototype-parity-impl-1.md)  
-- **已交付：** S0b–S4 · S1b FunASR · S5 原型硬能力  
+- **上一刀证据：** [`docs/progress/transcript-utf8-encoding-fix.md`](docs/progress/transcript-utf8-encoding-fix.md)  
+- **已交付：** S0b–S5 · FunASR 多格式 · 进度/日志 · 删除/终止 · **UTF-8 转写管线** · **重新转写**  
 - **应用：** `app/web` + `app/server` + `workers/asr`  
-- **残余 polish：** PDF CJK、Playwright 完整上传手势脚本、多说话人长会、4G RSS  
-- **下一步建议：** 人 `git push` · Playwright 主路径脚本固化  
-  
+- **已知：** 乱码会议须点「重新转写」或重传（U+FFFD 不可逆）  
+- **下一阶段（未开刀）：** 智在更深纪要细节 · **图表总结 / 思维导图**  
+- **残余 polish：** PDF CJK、Playwright 完整上传 E2E、多说话人长会 soak、4G RSS  
+
 
 ## 相关入口
 

@@ -25,6 +25,22 @@ from typing import Any
 # Reduce thread oversubscription on 4C boxes
 os.environ.setdefault("OMP_NUM_THREADS", "4")
 os.environ.setdefault("MKL_NUM_THREADS", "4")
+# Windows consoles default to GBK; without this, ensure_ascii=False Chinese
+# becomes GBK bytes on stdout and Node decodes them as UTF-8 → permanent U+FFFD.
+os.environ.setdefault("PYTHONIOENCODING", "utf-8")
+os.environ.setdefault("PYTHONUTF8", "1")
+
+
+def _force_utf8_stdio() -> None:
+    """Make JSON on stdout always UTF-8 bytes, independent of console code page."""
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[attr-defined]
+        except Exception:
+            pass
+
+
+_force_utf8_stdio()
 
 _MODEL = None
 _MODEL_KEY: str | None = None
@@ -33,6 +49,19 @@ _PATCHED = False
 
 def log(msg: str) -> None:
     print(msg, file=sys.stderr, flush=True)
+
+
+def emit_json(obj: Any) -> None:
+    """Write one UTF-8 JSON object to stdout (protocol for Node FunasrEngine)."""
+    payload = json.dumps(obj, ensure_ascii=False, separators=(",", ":"))
+    data = (payload + "\n").encode("utf-8")
+    try:
+        sys.stdout.buffer.write(data)
+        sys.stdout.buffer.flush()
+    except Exception:
+        # Fallback if buffer unavailable
+        sys.stdout.write(payload + "\n")
+        sys.stdout.flush()
 
 
 def _ensure_patches() -> None:
@@ -406,7 +435,7 @@ def main() -> int:
         assert segs[0]["text"] == "你好"
         assert segs[0]["startMs"] == 0 and segs[0]["endMs"] == 1200
         assert segs[1]["speaker"] == "Speaker 1"
-        print(json.dumps({"ok": True, "segments": segs}, ensure_ascii=False))
+        emit_json({"ok": True, "segments": segs})
         return 0
 
     spk = args.spk.strip() if args.spk is not None else ""
@@ -420,12 +449,13 @@ def main() -> int:
             try:
                 req = json.loads(line)
             except json.JSONDecodeError as e:
-                print(
-                    json.dumps(
-                        {"status": "failed", "engine": "funasr", "segments": [], "errorMessage": str(e)},
-                        ensure_ascii=False,
-                    ),
-                    flush=True,
+                emit_json(
+                    {
+                        "status": "failed",
+                        "engine": "funasr",
+                        "segments": [],
+                        "errorMessage": str(e),
+                    }
                 )
                 continue
             audio = req.get("audio") or req.get("path")
@@ -443,7 +473,7 @@ def main() -> int:
             )
             if req.get("request_id") is not None:
                 out["request_id"] = req["request_id"]
-            print(json.dumps(out, ensure_ascii=False), flush=True)
+            emit_json(out)
         return 0
 
     if not args.audio:
@@ -460,7 +490,7 @@ def main() -> int:
         batch_size_s=args.batch_size_s,
         punc_model=punc_model,
     )
-    print(json.dumps(out, ensure_ascii=False))
+    emit_json(out)
     return 0 if out.get("status") in ("succeeded", "degraded") else 2
 
 

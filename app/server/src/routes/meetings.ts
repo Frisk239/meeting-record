@@ -13,7 +13,7 @@ import {
   listMeetings,
   renameMeeting,
 } from "../services/meetings.js";
-import { cancelMeetingJobs } from "../services/queue.js";
+import { cancelMeetingJobs, retranscribeMeeting } from "../services/queue.js";
 import { generateInsights, getInsights } from "../services/insights.js";
 import {
   generateMinutesForMeeting,
@@ -124,6 +124,27 @@ meetingRoutes.post("/:id/jobs/cancel", async (c) => {
   const result = await cancelMeetingJobs(meetingId, user.id);
   const meeting = await getMeeting(user.id, meetingId);
   return c.json({ ok: true, ...result, meeting });
+});
+
+/**
+ * Re-run ASR on existing recording (e.g. after encoding fix).
+ * Body optional: { recordingId?: string }. Defaults to latest recording.
+ */
+meetingRoutes.post("/:id/jobs/retranscribe", async (c) => {
+  const user = c.get("user");
+  const meetingId = c.req.param("id");
+  const body = z
+    .object({ recordingId: z.string().optional() })
+    .safeParse(await c.req.json().catch(() => ({})));
+  if (!body.success) throw badRequest("请求体无效");
+  await getMeeting(user.id, meetingId);
+  const result = await retranscribeMeeting(
+    meetingId,
+    user.id,
+    body.data.recordingId,
+  );
+  const meeting = await getMeeting(user.id, meetingId);
+  return c.json({ ok: true, ...result, meeting }, 201);
 });
 
 meetingRoutes.get("/:id/minutes", async (c) => {
