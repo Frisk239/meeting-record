@@ -15,6 +15,10 @@ process.env.APP_NAME = "Meeting Record Test";
 process.env.SESSION_SECRET = "test-secret";
 process.env.MOCK_ASR_DELAY_MS = "50";
 process.env.ASR_ENGINE = "mock";
+// Force mock minutes path — do not hit real LLM from developer .env
+process.env.LLM_BASE_URL = "";
+process.env.LLM_MODEL = "";
+process.env.LLM_API_KEY = "";
 
 const { resetDbForTests } = await import("./db/client.js");
 const { migrate } = await import("./db/migrate.js");
@@ -104,25 +108,36 @@ describe("meetings + upload + mock transcript", () => {
 
     await waitForJobsIdle({ meetingId: upBody.meeting.id, timeoutMs: 10_000 });
 
-    const detail = await app.request(`/api/meetings/${upBody.meeting.id}`, {
-      headers: { cookie: `${config.cookieName}=${cookieA}` },
-    });
-    assert.equal(detail.status, 200);
-    const body = (await detail.json()) as {
+    // Auto Minutes runs async after ASR; poll briefly
+    let body: {
       meeting: {
         status: string;
+        minutesStatus: string;
+        minutesMarkdown: string;
         transcript: Array<{ speaker: string; text: string }>;
         jobs: Array<{ status: string; engine: string }>;
       };
-    };
-    assert.equal(body.meeting.status, "ready");
-    assert.ok(body.meeting.transcript.length >= 2);
-    assert.ok(body.meeting.transcript.some((s) => s.speaker.startsWith("Speaker")));
-    assert.equal(body.meeting.jobs[0]?.status, "succeeded");
-    assert.equal(body.meeting.jobs[0]?.engine, "mock");
+    } | null = null;
+    for (let i = 0; i < 50; i++) {
+      const detail = await app.request(`/api/meetings/${upBody.meeting.id}`, {
+        headers: { cookie: `${config.cookieName}=${cookieA}` },
+      });
+      assert.equal(detail.status, 200);
+      body = (await detail.json()) as typeof body;
+      if (body!.meeting.minutesStatus === "ready" || body!.meeting.minutesStatus === "failed") {
+        break;
+      }
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    assert.ok(body);
+    assert.equal(body!.meeting.status, "ready");
+    assert.ok(body!.meeting.transcript.length >= 2);
+    assert.ok(body!.meeting.transcript.some((s) => s.speaker.startsWith("Speaker")));
+    assert.equal(body!.meeting.jobs[0]?.status, "succeeded");
+    assert.equal(body!.meeting.jobs[0]?.engine, "mock");
     // Auto minutes (mock LLM path when no API key)
-    assert.equal(body.meeting.minutesStatus, "ready");
-    assert.ok(String(body.meeting.minutesMarkdown || "").includes("纪要"));
+    assert.equal(body!.meeting.minutesStatus, "ready");
+    assert.ok(String(body!.meeting.minutesMarkdown || "").includes("纪要"));
 
     const md = await app.request(`/api/meetings/${upBody.meeting.id}/export.md`, {
       headers: { cookie: `${config.cookieName}=${cookieA}` },
@@ -248,5 +263,47 @@ describe("meetings + upload + mock transcript", () => {
   it("rejects unauthenticated meeting list", async () => {
     const res = await app.request("/api/meetings");
     assert.equal(res.status, 401);
+  });
+
+  it("cancel job and delete meeting", async () => {
+    // Slow mock so we can cancel while "running"
+    process.env.MOCK_ASR_DELAY_MS = "2000";
+    // re-import won't reload config — cancel queued works without reconfig
+    const bytes = new Uint8Array(1000);
+    bytes.fill(1);
+    const form = new FormData();
+    form.append("file", new Blob([bytes], { type: "audio/webm" }), "slow.webm");
+    form.append("title", "待取消");
+    form.append("source", "upload");
+    const up = await app.request("/api/meetings/upload", {
+      method: "POST",
+      headers: { cookie: `${config.cookieName}=${cookieA}` },
+      body: form,
+    });
+    assert.equal(up.status, 201);
+    const { meeting } = (await up.json()) as { meeting: { id: string } };
+
+    const cancel = await app.request(`/api/meetings/${meeting.id}/jobs/cancel`, {
+      method: "POST",
+      headers: { cookie: `${config.cookieName}=${cookieA}` },
+    });
+    assert.equal(cancel.status, 200);
+    const cancelBody = (await cancel.json()) as {
+      cancelledJobIds: string[];
+      meeting: { status: string };
+    };
+    assert.ok(cancelBody.cancelledJobIds.length >= 1);
+    assert.equal(cancelBody.meeting.status, "failed");
+
+    const del = await app.request(`/api/meetings/${meeting.id}`, {
+      method: "DELETE",
+      headers: { cookie: `${config.cookieName}=${cookieA}` },
+    });
+    assert.equal(del.status, 200);
+
+    const gone = await app.request(`/api/meetings/${meeting.id}`, {
+      headers: { cookie: `${config.cookieName}=${cookieA}` },
+    });
+    assert.equal(gone.status, 404);
   });
 });

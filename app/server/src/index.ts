@@ -12,6 +12,9 @@ console.log(
 console.log(
   `  ALLOW_REGISTER=${config.allowRegister} (server-only; not a frontend toggle)`,
 );
+console.log(
+  `  ASR_ENGINE=${config.asrEngine} fallbackMock=${config.asrFallbackMock} python=${config.asrWorkerPython}`,
+);
 
 serve({
   fetch: app.fetch,

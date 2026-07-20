@@ -3,6 +3,11 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { config } from "../../config.js";
+import {
+  clearRunningJob,
+  isJobCancelled,
+  registerRunningJob,
+} from "../jobControl.js";
 import type { AsrEngine, AsrInput, AsrResult, AsrSegment } from "./types.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -136,6 +141,10 @@ export class FunasrEngine implements AsrEngine {
 
     const timeoutMs = config.asrWorkerTimeoutMs;
 
+    console.log(
+      `[asr/funasr] spawn: ${python} ${script}\n  audio=${input.audioPath}\n  model=${config.funasrModel} vad=${config.funasrVad} spk=${config.funasrSpk}`,
+    );
+
     return new Promise<AsrResult>((resolve) => {
       const child = spawn(python, args, {
         env: {
@@ -143,19 +152,33 @@ export class FunasrEngine implements AsrEngine {
           OMP_NUM_THREADS: process.env.OMP_NUM_THREADS || "4",
           MKL_NUM_THREADS: process.env.MKL_NUM_THREADS || "4",
           ASR_NCPU: process.env.ASR_NCPU || "4",
+          PYTHONUNBUFFERED: "1",
         },
         windowsHide: true,
       });
 
+      if (input.jobId) {
+        registerRunningJob(input.jobId, child);
+      }
+
       let stdout = "";
       let stderr = "";
       let settled = false;
+      /** Throttle noisy tqdm progress lines to the terminal */
+      let lastLogAt = 0;
 
-      const timer = setTimeout(() => {
+      const finish = (result: AsrResult) => {
         if (settled) return;
         settled = true;
+        clearTimeout(timer);
+        if (input.jobId) clearRunningJob(input.jobId);
+        resolve(result);
+      };
+
+      const timer = setTimeout(() => {
         child.kill("SIGTERM");
-        resolve({
+        console.error(`[asr/funasr] timeout after ${timeoutMs}ms`);
+        finish({
           engine: this.name,
           status: "failed",
           segments: [],
@@ -167,16 +190,29 @@ export class FunasrEngine implements AsrEngine {
         stdout += String(c);
       });
       child.stderr.on("data", (c) => {
-        stderr += String(c);
-        // keep stderr bounded in memory
+        const chunk = String(c);
+        stderr += chunk;
         if (stderr.length > 50_000) stderr = stderr.slice(-50_000);
+
+        // FunASR/tqdm writes progress with \r; print useful lines live
+        const now = Date.now();
+        const lines = chunk
+          .replace(/\r/g, "\n")
+          .split("\n")
+          .map((l) => l.trim())
+          .filter(Boolean);
+        for (const line of lines) {
+          // skip pure bar spam unless throttled
+          const isBar = line.includes("%|") || line.includes("it/s");
+          if (isBar && now - lastLogAt < 2000) continue;
+          lastLogAt = now;
+          console.log(`[asr/funasr] ${line.slice(0, 240)}`);
+        }
       });
 
       child.on("error", (err) => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(timer);
-        resolve({
+        console.error(`[asr/funasr] spawn error: ${err.message}`);
+        finish({
           engine: this.name,
           status: "failed",
           segments: [],
@@ -185,17 +221,40 @@ export class FunasrEngine implements AsrEngine {
       });
 
       child.on("close", (code) => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(timer);
+        if (input.jobId && isJobCancelled(input.jobId)) {
+          console.log(`[asr/funasr] cancelled job=${input.jobId} exit=${code}`);
+          finish({
+            engine: this.name,
+            status: "cancelled",
+            segments: [],
+            errorMessage: "用户已终止转写",
+          });
+          return;
+        }
         const result = parseWorkerJson(stdout);
         if (result.status === "failed" && !result.errorMessage && code !== 0) {
           result.errorMessage = `worker exit ${code}: ${stderr.trim().slice(-500)}`;
         } else if (result.status === "failed" && stderr && result.errorMessage) {
-          // attach tail of stderr for ops
           result.errorMessage = `${result.errorMessage} | ${stderr.trim().slice(-300)}`;
         }
-        resolve(result);
+        // Non-zero exit without JSON often means killed
+        if (
+          result.status === "failed" &&
+          !stdout.trim() &&
+          (code === null || code === 1 || code === 15 || code === 137)
+        ) {
+          if (input.jobId && isJobCancelled(input.jobId)) {
+            result.status = "cancelled";
+            result.errorMessage = "用户已终止转写";
+          }
+        }
+        console.log(
+          `[asr/funasr] done exit=${code} status=${result.status} segments=${result.segments.length}`,
+        );
+        if (result.status === "failed") {
+          console.error(`[asr/funasr] error: ${result.errorMessage}`);
+        }
+        finish(result);
       });
     });
   }

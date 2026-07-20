@@ -27,7 +27,7 @@ export const config = {
    * ASR engine: "mock" | "funasr"
    * funasr requires workers/asr Python venv (see workers/asr/README.md).
    */
-  asrEngine: (process.env.ASR_ENGINE?.trim() || "mock") as "mock" | "funasr",
+  asrEngine: (process.env.ASR_ENGINE?.trim() || "funasr") as "mock" | "funasr",
   /** When funasr fails, degrade to mock (default false — fail the job loudly). */
   asrFallbackMock: boolEnv("ASR_FALLBACK_MOCK", false),
   /** Mock job artificial delay (ms). */

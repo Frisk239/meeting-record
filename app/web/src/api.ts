@@ -238,6 +238,18 @@ export function generateInsights(meetingId: string) {
   );
 }
 
+export function deleteMeeting(meetingId: string) {
+  return api<{ ok: boolean }>(`/api/meetings/${meetingId}`, { method: "DELETE" });
+}
+
+export function cancelMeetingJobs(meetingId: string) {
+  return api<{
+    ok: boolean;
+    cancelledJobIds: string[];
+    meeting: MeetingDetail;
+  }>(`/api/meetings/${meetingId}/jobs/cancel`, { method: "POST" });
+}
+
 /** Cookie-auth audio URL (same origin / Vite proxy). */
 export function meetingAudioUrl(meetingId: string, recordingId?: string | null): string {
   const q = recordingId ? `?recordingId=${encodeURIComponent(recordingId)}` : "";

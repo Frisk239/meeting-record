@@ -7,11 +7,13 @@ import { exportMarkdown, exportPdf } from "../services/export.js";
 import {
   attachRecordingAndEnqueue,
   createMeeting,
+  deleteMeeting,
   getMeeting,
   getOwnedRecordingFile,
   listMeetings,
   renameMeeting,
 } from "../services/meetings.js";
+import { cancelMeetingJobs } from "../services/queue.js";
 import { generateInsights, getInsights } from "../services/insights.js";
 import {
   generateMinutesForMeeting,
@@ -101,6 +103,27 @@ meetingRoutes.patch("/:id", async (c) => {
   const user = c.get("user");
   const meeting = await renameMeeting(user.id, c.req.param("id"), body.data.title);
   return c.json({ meeting });
+});
+
+/** Delete meeting (and cancel any running/queued jobs). */
+meetingRoutes.delete("/:id", async (c) => {
+  const user = c.get("user");
+  await deleteMeeting(user.id, c.req.param("id"));
+  return c.json({ ok: true });
+});
+
+/**
+ * Abort transcription for this meeting (queued → cancel; running → kill worker).
+ * Meeting is kept; status becomes failed with message 用户已终止转写.
+ */
+meetingRoutes.post("/:id/jobs/cancel", async (c) => {
+  const user = c.get("user");
+  const meetingId = c.req.param("id");
+  // ownership
+  await getMeeting(user.id, meetingId);
+  const result = await cancelMeetingJobs(meetingId, user.id);
+  const meeting = await getMeeting(user.id, meetingId);
+  return c.json({ ok: true, ...result, meeting });
 });
 
 meetingRoutes.get("/:id/minutes", async (c) => {

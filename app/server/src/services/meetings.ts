@@ -364,3 +364,31 @@ export async function attachRecordingAndEnqueue(input: {
 export function denyCrossUser(): never {
   throw forbidden("无权访问该资源");
 }
+
+/**
+ * Delete meeting + cascade DB rows; best-effort remove audio files on disk.
+ * Cancels in-flight jobs first.
+ */
+export async function deleteMeeting(userId: string, meetingId: string): Promise<void> {
+  const m = await assertMeetingOwner(userId, meetingId);
+  const { cancelMeetingJobs } = await import("./queue.js");
+  await cancelMeetingJobs(meetingId, userId);
+
+  const db = openDb();
+  const recs = await db
+    .select()
+    .from(recordings)
+    .where(and(eq(recordings.meetingId, meetingId), eq(recordings.userId, userId)));
+
+  await db.delete(meetings).where(and(eq(meetings.id, meetingId), eq(meetings.userId, userId)));
+
+  for (const r of recs) {
+    try {
+      const { unlink } = await import("node:fs/promises");
+      await unlink(r.storagePath);
+    } catch {
+      // file may already be gone
+    }
+  }
+  console.log(`[meetings] deleted ${m.id} user=${userId} files=${recs.length}`);
+}

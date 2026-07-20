@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
+  cancelMeetingJobs,
+  deleteMeeting,
   exportMdUrl,
   exportPdfUrl,
   formatTime,
@@ -14,6 +16,8 @@ import {
   type MinutesDoc,
   type TranscriptLine,
 } from "../api";
+import { AudioDropZone } from "../components/AudioDropZone";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 
 type Tab = "minutes" | "transcript" | "insights";
 type RecFilter = "time" | "speaker" | string;
@@ -48,6 +52,15 @@ function jobBannerText(m: MeetingDetail): string | null {
   return null;
 }
 
+function isTranscribing(m: MeetingDetail): boolean {
+  const job = m.jobs[0];
+  return (
+    m.status === "processing" ||
+    job?.status === "queued" ||
+    job?.status === "running"
+  );
+}
+
 export function MeetingDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -61,6 +74,7 @@ export function MeetingDetailPage() {
   const [playing, setPlaying] = useState(false);
   const [speedIdx, setSpeedIdx] = useState(0);
   const [currentMs, setCurrentMs] = useState(0);
+  const [confirm, setConfirm] = useState<null | "cancel" | "delete">(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -218,6 +232,40 @@ export function MeetingDetailPage() {
     }
   }
 
+  async function onCancelJob() {
+    if (!id) return;
+    setBusy(true);
+    setMsg(null);
+    try {
+      const res = await cancelMeetingJobs(id);
+      if (!res.ok) {
+        setMsg(res.data.message || "终止失败");
+        return;
+      }
+      setConfirm(null);
+      await refresh();
+      setMsg("已终止转写");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onDeleteMeeting() {
+    if (!id) return;
+    setBusy(true);
+    setMsg(null);
+    try {
+      const res = await deleteMeeting(id);
+      if (!res.ok) {
+        setMsg(res.data.message || "删除失败");
+        return;
+      }
+      navigate("/", { replace: true });
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (error) {
     return (
       <div className="page">
@@ -265,23 +313,69 @@ export function MeetingDetailPage() {
             {` · 纪要 ${meeting.minutesStatus}`}
           </p>
         </div>
-        <div className="row gap wrap">
-          <a className="btn btn-ghost" href={exportMdUrl(meeting.id)}>
+        <div className="row gap wrap detail-toolbar">
+          <a className="btn btn-ghost btn-sm" href={exportMdUrl(meeting.id)}>
             导出 MD
           </a>
-          <a className="btn btn-ghost" href={exportMdUrl(meeting.id, true)}>
+          <a className="btn btn-ghost btn-sm" href={exportMdUrl(meeting.id, true)}>
             MD+原文
           </a>
-          <a className="btn btn-primary" href={exportPdfUrl(meeting.id)}>
+          <a className="btn btn-primary btn-sm" href={exportPdfUrl(meeting.id)}>
             导出 PDF
           </a>
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm danger detail-delete-desktop"
+            disabled={busy}
+            onClick={() => setConfirm("delete")}
+          >
+            删除
+          </button>
         </div>
       </header>
 
       {banner ? (
-        <div className={`job-banner${meeting.status === "failed" ? " fail" : ""}`}>
-          <span className="dot" />
-          <span>{banner}</span>
+        <div
+          className={`job-banner${meeting.status === "failed" && !isTranscribing(meeting) ? " fail" : ""}`}
+        >
+          <div className="job-banner-main">
+            <span className="dot" />
+            <span>{banner}</span>
+          </div>
+          {isTranscribing(meeting) ? (
+            <div className="job-banner-actions">
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm danger"
+                disabled={busy}
+                onClick={() => setConfirm("cancel")}
+              >
+                终止转写
+              </button>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm danger mobile-only"
+                disabled={busy}
+                onClick={() => setConfirm("delete")}
+              >
+                放弃并删除
+              </button>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {/* Mobile sticky management bar when idle */}
+      {!isTranscribing(meeting) ? (
+        <div className="mobile-manage-bar">
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm danger"
+            disabled={busy}
+            onClick={() => setConfirm("delete")}
+          >
+            删除笔记
+          </button>
         </div>
       ) : null}
 
@@ -559,30 +653,40 @@ export function MeetingDetailPage() {
             </ul>
           )}
 
-          <div className="bottom-actions row gap wrap">
-            <button
-              type="button"
-              className="btn btn-ghost"
-              disabled={busy}
-              onClick={() => fileRef.current?.click()}
-            >
-              导入音频
-            </button>
-            <input
-              ref={fileRef}
-              type="file"
-              accept="audio/*,.mp3,.wav,.m4a,.webm,.ogg,.flac"
-              hidden
-              onChange={(e) => void onImport(e.target.files?.[0] ?? null)}
-            />
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={() => navigate("/record", { state: { appendMeetingId: meeting.id } })}
-            >
-              追加录音
-            </button>
-          </div>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="audio/*,.mp3,.wav,.m4a,.webm,.ogg,.flac"
+            hidden
+            onChange={(e) => void onImport(e.target.files?.[0] ?? null)}
+          />
+          <AudioDropZone
+            compact
+            disabled={busy}
+            className="drop-zone-detail"
+            onFile={(f) => void onImport(f)}
+            label={busy ? "处理中…" : "拖拽音频到此追加导入"}
+          >
+            <div className="bottom-actions row gap wrap">
+              <button
+                type="button"
+                className="btn btn-ghost"
+                disabled={busy}
+                onClick={() => fileRef.current?.click()}
+              >
+                导入音频
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() =>
+                  navigate("/record", { state: { appendMeetingId: meeting.id } })
+                }
+              >
+                追加录音
+              </button>
+            </div>
+          </AudioDropZone>
         </section>
       ) : null}
 
@@ -634,6 +738,27 @@ export function MeetingDetailPage() {
           💬 追问
         </Link>
       ) : null}
+
+      <ConfirmDialog
+        open={confirm === "cancel"}
+        title="终止转写？"
+        body="将停止当前排队或运行中的 FunASR 任务。笔记会保留，可重新导入或追加录音后再转写。"
+        confirmLabel="终止"
+        danger
+        busy={busy}
+        onCancel={() => setConfirm(null)}
+        onConfirm={() => void onCancelJob()}
+      />
+      <ConfirmDialog
+        open={confirm === "delete"}
+        title="删除这条笔记？"
+        body="将永久删除会议、录音与转写/纪要。若正在转写会先终止任务。此操作不可恢复。"
+        confirmLabel="删除"
+        danger
+        busy={busy}
+        onCancel={() => setConfirm(null)}
+        onConfirm={() => void onDeleteMeeting()}
+      />
     </div>
   );
 }

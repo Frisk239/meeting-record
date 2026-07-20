@@ -10,8 +10,8 @@ export type AsrSegment = {
 
 export type AsrResult = {
   engine: string;
-  /** succeeded | degraded | failed */
-  status: "succeeded" | "degraded" | "failed";
+  /** succeeded | degraded | failed | cancelled */
+  status: "succeeded" | "degraded" | "failed" | "cancelled";
   segments: AsrSegment[];
   errorMessage?: string;
 };
@@ -21,6 +21,8 @@ export type AsrInput = {
   mimeType: string;
   originalFilename: string;
   meetingTitle: string;
+  /** When set, engine registers child for abort */
+  jobId?: string;
 };
 
 export interface AsrEngine {

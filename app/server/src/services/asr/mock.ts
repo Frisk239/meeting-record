@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import { config } from "../../config.js";
+import { isJobCancelled, registerRunningJob, clearRunningJob } from "../jobControl.js";
 import type { AsrEngine, AsrInput, AsrResult } from "./types.js";
 
 /**
@@ -10,9 +11,36 @@ export class MockAsrEngine implements AsrEngine {
   readonly name = "mock";
 
   async transcribe(input: AsrInput): Promise<AsrResult> {
-    if (config.mockAsrDelayMs > 0) {
-      await new Promise((r) => setTimeout(r, config.mockAsrDelayMs));
+    if (input.jobId) {
+      registerRunningJob(input.jobId, null);
     }
+    const delay = config.mockAsrDelayMs;
+    const step = 100;
+    let waited = 0;
+    while (waited < delay) {
+      if (input.jobId && isJobCancelled(input.jobId)) {
+        if (input.jobId) clearRunningJob(input.jobId);
+        return {
+          engine: this.name,
+          status: "cancelled",
+          segments: [],
+          errorMessage: "用户已终止转写",
+        };
+      }
+      const slice = Math.min(step, delay - waited);
+      await new Promise((r) => setTimeout(r, slice));
+      waited += slice;
+    }
+    if (input.jobId && isJobCancelled(input.jobId)) {
+      clearRunningJob(input.jobId);
+      return {
+        engine: this.name,
+        status: "cancelled",
+        segments: [],
+        errorMessage: "用户已终止转写",
+      };
+    }
+    if (input.jobId) clearRunningJob(input.jobId);
 
     let byteSize = 0;
     try {
@@ -78,3 +106,4 @@ export class MockAsrEngine implements AsrEngine {
     };
   }
 }
+

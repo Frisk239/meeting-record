@@ -1,9 +1,21 @@
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { openDb } from "../db/client.js";
-import { meetings, recordings, transcriptSegments, transcriptionJobs } from "../db/schema.js";
+import {
+  meetings,
+  recordings,
+  transcriptSegments,
+  transcriptionJobs,
+} from "../db/schema.js";
 import { newId } from "../lib/crypto.js";
 import { config } from "../config.js";
 import { getAsrEngine } from "./asr/index.js";
+import {
+  clearCancelled,
+  clearRunningJob,
+  isJobCancelled,
+  killRunningWorker,
+  markJobCancelled,
+} from "./jobControl.js";
 
 /**
  * In-process serial transcription queue.
@@ -37,6 +49,19 @@ async function pump(): Promise<void> {
       const job = next[0];
       if (!job) break;
 
+      if (isJobCancelled(job.id)) {
+        clearCancelled(job.id);
+        await db
+          .update(transcriptionJobs)
+          .set({
+            status: "failed",
+            errorMessage: "用户已取消",
+            finishedAt: new Date(),
+          })
+          .where(eq(transcriptionJobs.id, job.id));
+        continue;
+      }
+
       const now = new Date();
       await db
         .update(transcriptionJobs)
@@ -50,6 +75,11 @@ async function pump(): Promise<void> {
       try {
         await runJob(job.id);
       } catch (err) {
+        if (isJobCancelled(job.id)) {
+          clearCancelled(job.id);
+          clearRunningJob(job.id);
+          continue;
+        }
         const message = err instanceof Error ? err.message : String(err);
         const failedAt = new Date();
         await db
@@ -81,6 +111,11 @@ async function runJob(jobId: string): Promise<void> {
   const job = jobRows[0];
   if (!job) return;
 
+  if (isJobCancelled(jobId)) {
+    clearCancelled(jobId);
+    return;
+  }
+
   const recRows = await db
     .select()
     .from(recordings)
@@ -98,12 +133,49 @@ async function runJob(jobId: string): Promise<void> {
   }
 
   const engine = getAsrEngine();
+  console.log(
+    `[queue] job ${jobId} start engine=${engine.name} meeting=${job.meetingId} file=${rec.originalFilename || rec.storagePath}`,
+  );
+  const t0 = Date.now();
   const result = await engine.transcribe({
     audioPath: rec.storagePath,
     mimeType: rec.mimeType,
     originalFilename: rec.originalFilename,
     meetingTitle: meeting.title,
+    jobId,
   });
+  console.log(
+    `[queue] job ${jobId} asr finished in ${((Date.now() - t0) / 1000).toFixed(1)}s status=${result.status} engine=${result.engine} segs=${result.segments.length}`,
+  );
+
+  // Re-check cancel (user aborted while running)
+  if (result.status === "cancelled" || isJobCancelled(jobId)) {
+    clearCancelled(jobId);
+    clearRunningJob(jobId);
+    console.log(`[queue] job ${jobId} cancelled — skip transcript write`);
+    // Meeting status already set by cancelMeetingJobs / leave as-is if deleted
+    const still = await db
+      .select()
+      .from(transcriptionJobs)
+      .where(eq(transcriptionJobs.id, jobId))
+      .limit(1);
+    if (still[0] && still[0].status === "running") {
+      await db
+        .update(transcriptionJobs)
+        .set({
+          status: "failed",
+          errorMessage: "用户已终止转写",
+          finishedAt: new Date(),
+          engine: result.engine || config.asrEngine,
+        })
+        .where(eq(transcriptionJobs.id, jobId));
+      await db
+        .update(meetings)
+        .set({ status: "failed", updatedAt: new Date() })
+        .where(eq(meetings.id, job.meetingId));
+    }
+    return;
+  }
 
   const finishedAt = new Date();
 
@@ -171,22 +243,31 @@ async function runJob(jobId: string): Promise<void> {
     })
     .where(eq(meetings.id, job.meetingId));
 
-  // Auto Minutes after successful transcription (ADR / product P0)
-  try {
-    const { generateMinutesForMeeting } = await import("./minutes.js");
-    await generateMinutesForMeeting(job.meetingId, job.userId);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    await db
-      .update(meetings)
-      .set({
-        minutesStatus: "failed",
-        updatedAt: new Date(),
-        summary: preview,
-      })
-      .where(eq(meetings.id, job.meetingId));
-    console.error("[auto-minutes]", job.meetingId, message);
-  }
+  // Auto Minutes off the serial ASR lock so next jobs / cancel stay responsive
+  const meetingIdForMinutes = job.meetingId;
+  const userIdForMinutes = job.userId;
+  void (async () => {
+    try {
+      const { generateMinutesForMeeting } = await import("./minutes.js");
+      await generateMinutesForMeeting(meetingIdForMinutes, userIdForMinutes);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      try {
+        const db2 = openDb();
+        await db2
+          .update(meetings)
+          .set({
+            minutesStatus: "failed",
+            updatedAt: new Date(),
+            summary: preview,
+          })
+          .where(eq(meetings.id, meetingIdForMinutes));
+      } catch {
+        // meeting may have been deleted
+      }
+      console.error("[auto-minutes]", meetingIdForMinutes, message);
+    }
+  })();
 }
 
 export async function createJobForRecording(input: {
@@ -217,6 +298,60 @@ export async function createJobForRecording(input: {
   return id;
 }
 
+/**
+ * Cancel queued jobs and abort running FunASR for a meeting.
+ * Does not delete the meeting.
+ */
+export async function cancelMeetingJobs(
+  meetingId: string,
+  userId: string,
+): Promise<{ cancelledJobIds: string[] }> {
+  const db = openDb();
+  const active = await db
+    .select()
+    .from(transcriptionJobs)
+    .where(
+      and(
+        eq(transcriptionJobs.meetingId, meetingId),
+        eq(transcriptionJobs.userId, userId),
+        inArray(transcriptionJobs.status, ["queued", "running"]),
+      ),
+    );
+
+  const cancelledJobIds: string[] = [];
+  const now = new Date();
+
+  for (const job of active) {
+    markJobCancelled(job.id);
+    cancelledJobIds.push(job.id);
+    if (job.status === "running") {
+      killRunningWorker(job.id);
+    }
+    await db
+      .update(transcriptionJobs)
+      .set({
+        status: "failed",
+        errorMessage: "用户已终止转写",
+        finishedAt: now,
+      })
+      .where(eq(transcriptionJobs.id, job.id));
+  }
+
+  if (cancelledJobIds.length) {
+    await db
+      .update(meetings)
+      .set({ status: "failed", updatedAt: now, minutesStatus: "none" })
+      .where(and(eq(meetings.id, meetingId), eq(meetings.userId, userId)));
+    console.log(
+      `[queue] cancel meeting=${meetingId} jobs=${cancelledJobIds.join(",")}`,
+    );
+  }
+
+  // Allow pump to pick next meeting's job
+  enqueueKick();
+  return { cancelledJobIds };
+}
+
 /** For tests: wait until no queued/running jobs for user/meeting. */
 export async function waitForJobsIdle(opts?: {
   meetingId?: string;
@@ -239,7 +374,8 @@ export async function waitForJobsIdle(opts?: {
           : inArray(transcriptionJobs.status, ["queued", "running"]),
       )
       .limit(1);
-    if (!rows.length && !running) return;
+    // Only wait for transcription jobs; Auto Minutes runs off the ASR lock
+    if (!rows.length) return;
     await new Promise((r) => setTimeout(r, 50));
   }
   throw new Error("waitForJobsIdle timeout");
