@@ -41,6 +41,9 @@ export type MeetingDetail = MeetingListItem & {
     status: string;
     engine: string;
     errorMessage: string;
+    progressPercent: number;
+    progressStage: string;
+    progressMessage: string;
     recordingId: string;
     createdAt: string;
     startedAt: string | null;
@@ -161,6 +164,9 @@ export async function getMeeting(
       status: j.status,
       engine: j.engine,
       errorMessage: j.errorMessage,
+      progressPercent: j.progressPercent ?? 0,
+      progressStage: j.progressStage || "",
+      progressMessage: j.progressMessage || "",
       recordingId: j.recordingId,
       createdAt: j.createdAt.toISOString(),
       startedAt: iso(j.startedAt),

@@ -187,6 +187,8 @@ def transcribe_file(
     batch_size_s: int,
     punc_model: str | None = "ct-punc",
 ) -> dict[str, Any]:
+    from audio_io import prepare_for_funasr, progress
+
     path = Path(audio)
     if not path.is_file():
         return {
@@ -196,56 +198,80 @@ def transcribe_file(
             "errorMessage": f"audio not found: {audio}",
         }
 
+    # Always convert to short-path 16k mono wav (webm/mp3/m4a + Windows path safety)
+    tmp_wav: Path | None = None
     try:
-        model = load_model(model_id, vad_model, spk_model, device, hub, punc_model)
-    except Exception as e:
-        return {
-            "status": "failed",
-            "engine": "funasr",
-            "segments": [],
-            "errorMessage": f"model load failed: {e}",
-            "trace": traceback.format_exc()[-2000:],
-        }
-
-    try:
-        t0 = time.time()
-        raw = model.generate(
-            input=str(path.resolve()),
-            batch_size_s=batch_size_s,
-        )
-        elapsed = time.time() - t0
-        segments = parse_funasr_result(raw)
-        if not segments:
+        progress("queued", 2, "准备转写")
+        try:
+            wav_path, is_temp = prepare_for_funasr(path)
+            if is_temp:
+                tmp_wav = wav_path
+        except Exception as e:
             return {
                 "status": "failed",
                 "engine": "funasr",
                 "segments": [],
-                "errorMessage": "empty ASR result",
-                "rawType": type(raw).__name__,
-                "elapsedSec": round(elapsed, 3),
+                "errorMessage": f"音频转码失败: {e}",
+                "trace": traceback.format_exc()[-2000:],
             }
-        # degraded if user asked for spk but all Speaker 0
-        status = "succeeded"
-        if spk_model and all(s.get("speaker") == "Speaker 0" for s in segments) and len(segments) > 1:
-            # still ok — maybe single speaker; keep succeeded
+
+        progress("loading_model", 25, "加载 FunASR 模型（首次较慢）")
+        try:
+            model = load_model(model_id, vad_model, spk_model, device, hub, punc_model)
+        except Exception as e:
+            return {
+                "status": "failed",
+                "engine": "funasr",
+                "segments": [],
+                "errorMessage": f"model load failed: {e}",
+                "trace": traceback.format_exc()[-2000:],
+            }
+
+        progress("transcribing", 55, "推理中（ASR + VAD + 说话人）")
+        try:
+            t0 = time.time()
+            # Prefer ndarray path; FunASR also accepts wav path (ASCII temp)
+            raw = model.generate(
+                input=str(wav_path),
+                batch_size_s=batch_size_s,
+            )
+            elapsed = time.time() - t0
+            progress("transcribing", 90, "解析结果")
+            segments = parse_funasr_result(raw)
+            if not segments:
+                return {
+                    "status": "failed",
+                    "engine": "funasr",
+                    "segments": [],
+                    "errorMessage": "empty ASR result",
+                    "rawType": type(raw).__name__,
+                    "elapsedSec": round(elapsed, 3),
+                }
             status = "succeeded"
-        return {
-            "status": status,
-            "engine": "funasr",
-            "segments": segments,
-            "elapsedSec": round(elapsed, 3),
-            "model": model_id,
-            "vad": vad_model,
-            "spk": spk_model or "",
-        }
-    except Exception as e:
-        return {
-            "status": "failed",
-            "engine": "funasr",
-            "segments": [],
-            "errorMessage": f"generate failed: {e}",
-            "trace": traceback.format_exc()[-2000:],
-        }
+            progress("done", 100, f"完成 {len(segments)} 段")
+            return {
+                "status": status,
+                "engine": "funasr",
+                "segments": segments,
+                "elapsedSec": round(elapsed, 3),
+                "model": model_id,
+                "vad": vad_model,
+                "spk": spk_model or "",
+            }
+        except Exception as e:
+            return {
+                "status": "failed",
+                "engine": "funasr",
+                "segments": [],
+                "errorMessage": f"generate failed: {e}",
+                "trace": traceback.format_exc()[-2000:],
+            }
+    finally:
+        if tmp_wav is not None:
+            try:
+                tmp_wav.unlink(missing_ok=True)
+            except Exception:
+                pass
 
 
 def main() -> int:

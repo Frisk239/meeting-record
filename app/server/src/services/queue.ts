@@ -136,13 +136,38 @@ async function runJob(jobId: string): Promise<void> {
   console.log(
     `[queue] job ${jobId} start engine=${engine.name} meeting=${job.meetingId} file=${rec.originalFilename || rec.storagePath}`,
   );
+  await db
+    .update(transcriptionJobs)
+    .set({
+      progressPercent: 1,
+      progressStage: "queued",
+      progressMessage: "开始转写",
+    })
+    .where(eq(transcriptionJobs.id, jobId));
+
   const t0 = Date.now();
+  let lastPct = -1;
   const result = await engine.transcribe({
     audioPath: rec.storagePath,
     mimeType: rec.mimeType,
     originalFilename: rec.originalFilename,
     meetingTitle: meeting.title,
     jobId,
+    onProgress: (p) => {
+      // fire-and-forget DB write; throttle tiny updates
+      if (p.percent === lastPct && p.percent < 100) return;
+      lastPct = p.percent;
+      void openDb()
+        .update(transcriptionJobs)
+        .set({
+          progressPercent: p.percent,
+          progressStage: p.stage.slice(0, 64),
+          progressMessage: (p.message || "").slice(0, 240),
+        })
+        .where(eq(transcriptionJobs.id, jobId))
+        .then(() => undefined)
+        .catch(() => undefined);
+    },
   });
   console.log(
     `[queue] job ${jobId} asr finished in ${((Date.now() - t0) / 1000).toFixed(1)}s status=${result.status} engine=${result.engine} segs=${result.segments.length}`,
@@ -186,6 +211,9 @@ async function runJob(jobId: string): Promise<void> {
         status: "failed",
         engine: result.engine,
         errorMessage: (result.errorMessage || "转写失败").slice(0, 500),
+        progressPercent: 100,
+        progressStage: "error",
+        progressMessage: (result.errorMessage || "转写失败").slice(0, 240),
         finishedAt,
       })
       .where(eq(transcriptionJobs.id, jobId));
@@ -224,6 +252,9 @@ async function runJob(jobId: string): Promise<void> {
       status: jobStatus,
       engine: result.engine,
       errorMessage: result.errorMessage?.slice(0, 500) || "",
+      progressPercent: 100,
+      progressStage: "done",
+      progressMessage: "转写完成",
       finishedAt,
     })
     .where(eq(transcriptionJobs.id, jobId));
@@ -286,6 +317,9 @@ export async function createJobForRecording(input: {
     status: "queued",
     engine: config.asrEngine,
     errorMessage: "",
+    progressPercent: 0,
+    progressStage: "queued",
+    progressMessage: "排队中",
     createdAt: now,
     startedAt: null,
     finishedAt: null,

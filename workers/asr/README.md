@@ -22,6 +22,23 @@ pip install -r requirements.txt
 
 First run downloads models from ModelScope/HF — keep disk free and patience.
 
+### Audio formats
+
+Worker **always** converts input to a temp **16 kHz mono WAV** before FunASR
+(avoids Windows `WinError 2` on webm/mp3 and odd paths). Decoding order:
+
+1. `soundfile` (wav/flac/ogg…)
+2. `librosa` / audioread (needs **ffmpeg on PATH** for mp3/webm/m4a)
+3. `torchaudio`
+
+Install ffmpeg on Windows (example):
+
+```bash
+winget install Gyan.FFmpeg
+# or choco install ffmpeg
+# then restart the terminal so PATH updates
+```
+
 ## CLI
 
 ```bash

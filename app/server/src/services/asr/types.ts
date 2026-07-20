@@ -16,6 +16,12 @@ export type AsrResult = {
   errorMessage?: string;
 };
 
+export type AsrProgress = {
+  stage: string;
+  percent: number;
+  message: string;
+};
+
 export type AsrInput = {
   audioPath: string;
   mimeType: string;
@@ -23,6 +29,7 @@ export type AsrInput = {
   meetingTitle: string;
   /** When set, engine registers child for abort */
   jobId?: string;
+  onProgress?: (p: AsrProgress) => void;
 };
 
 export interface AsrEngine {

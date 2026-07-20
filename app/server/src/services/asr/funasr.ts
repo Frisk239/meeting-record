@@ -202,6 +202,26 @@ export class FunasrEngine implements AsrEngine {
           .map((l) => l.trim())
           .filter(Boolean);
         for (const line of lines) {
+          if (line.startsWith("PROGRESS ")) {
+            try {
+              const p = JSON.parse(line.slice("PROGRESS ".length)) as {
+                stage?: string;
+                percent?: number;
+                message?: string;
+              };
+              input.onProgress?.({
+                stage: String(p.stage || ""),
+                percent: Number(p.percent) || 0,
+                message: String(p.message || ""),
+              });
+              console.log(
+                `[asr/funasr] progress ${p.percent}% ${p.stage} ${p.message || ""}`,
+              );
+            } catch {
+              // ignore
+            }
+            continue;
+          }
           // skip pure bar spam unless throttled
           const isBar = line.includes("%|") || line.includes("it/s");
           if (isBar && now - lastLogAt < 2000) continue;

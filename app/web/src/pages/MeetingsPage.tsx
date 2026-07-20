@@ -12,10 +12,10 @@ import { AudioDropZone } from "../components/AudioDropZone";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 
 function statusLabel(m: MeetingListItem): string {
-  if (m.latestJobStatus === "queued" || m.latestJobStatus === "running") return "转写中";
+  if (m.latestJobStatus === "queued") return "排队中";
+  if (m.latestJobStatus === "running" || m.status === "processing") return "转写中";
   if (m.status === "ready") return "已就绪";
   if (m.status === "failed") return "失败";
-  if (m.status === "processing") return "处理中";
   return "草稿";
 }
 

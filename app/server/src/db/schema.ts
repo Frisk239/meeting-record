@@ -79,6 +79,11 @@ export const transcriptionJobs = sqliteTable("transcription_jobs", {
   status: text("status").notNull().default("queued"),
   engine: text("engine").notNull().default("mock"),
   errorMessage: text("error_message").notNull().default(""),
+  /** 0–100 rough progress for UI */
+  progressPercent: integer("progress_percent").notNull().default(0),
+  /** queued | convert | loading_model | transcribing | minutes | done | error */
+  progressStage: text("progress_stage").notNull().default(""),
+  progressMessage: text("progress_message").notNull().default(""),
   createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
   startedAt: integer("started_at", { mode: "timestamp_ms" }),
   finishedAt: integer("finished_at", { mode: "timestamp_ms" }),

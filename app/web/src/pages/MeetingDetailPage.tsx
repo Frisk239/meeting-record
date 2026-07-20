@@ -39,11 +39,36 @@ function emptyMinutes(title: string): MinutesDoc {
   };
 }
 
+function stageLabel(stage: string): string {
+  switch (stage) {
+    case "queued":
+      return "排队中";
+    case "convert":
+      return "音频转码";
+    case "loading_model":
+      return "加载模型";
+    case "transcribing":
+      return "语音识别";
+    case "minutes":
+      return "生成纪要";
+    case "done":
+      return "完成";
+    case "error":
+      return "失败";
+    default:
+      return stage || "处理中";
+  }
+}
+
 function jobBannerText(m: MeetingDetail): string | null {
   const job = m.jobs[0];
-  if (job?.status === "queued") return "排队等待 CPU 转写…";
+  if (job?.status === "queued") {
+    return job.progressMessage || "排队等待 CPU 转写…";
+  }
   if (job?.status === "running" || m.status === "processing") {
-    return "转写 + 说话人分离进行中…";
+    const stage = stageLabel(job?.progressStage || "");
+    const msg = job?.progressMessage || "转写 + 说话人分离进行中…";
+    return `${stage} · ${msg}`;
   }
   if (m.minutesStatus === "generating") return "转写完成，正在生成纪要…";
   if (m.status === "failed" || job?.status === "failed") {
@@ -338,9 +363,34 @@ export function MeetingDetailPage() {
         <div
           className={`job-banner${meeting.status === "failed" && !isTranscribing(meeting) ? " fail" : ""}`}
         >
-          <div className="job-banner-main">
-            <span className="dot" />
-            <span>{banner}</span>
+          <div className="job-banner-col">
+            <div className="job-banner-main">
+              <span className="dot" />
+              <span>{banner}</span>
+              {isTranscribing(meeting) && meeting.jobs[0] ? (
+                <span className="job-pct">
+                  {Math.max(0, Math.min(100, meeting.jobs[0].progressPercent || 0))}%
+                </span>
+              ) : null}
+            </div>
+            {isTranscribing(meeting) && meeting.jobs[0] ? (
+              <div
+                className="job-progress-track"
+                role="progressbar"
+                aria-valuenow={meeting.jobs[0].progressPercent || 0}
+                aria-valuemin={0}
+                aria-valuemax={100}
+              >
+                <i
+                  style={{
+                    width: `${Math.max(2, Math.min(100, meeting.jobs[0].progressPercent || 0))}%`,
+                  }}
+                />
+              </div>
+            ) : null}
+            {meeting.status === "failed" && meeting.jobs[0]?.errorMessage ? (
+              <p className="job-error-detail">{meeting.jobs[0].errorMessage}</p>
+            ) : null}
           </div>
           {isTranscribing(meeting) ? (
             <div className="job-banner-actions">

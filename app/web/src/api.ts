@@ -64,6 +64,9 @@ export type MeetingDetail = MeetingListItem & {
     status: string;
     engine: string;
     errorMessage: string;
+    progressPercent: number;
+    progressStage: string;
+    progressMessage: string;
     recordingId: string;
     createdAt: string;
     startedAt: string | null;

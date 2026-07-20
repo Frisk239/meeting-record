@@ -72,6 +72,9 @@ export async function migrate(): Promise<void> {
       status TEXT NOT NULL DEFAULT 'queued',
       engine TEXT NOT NULL DEFAULT 'mock',
       error_message TEXT NOT NULL DEFAULT '',
+      progress_percent INTEGER NOT NULL DEFAULT 0,
+      progress_stage TEXT NOT NULL DEFAULT '',
+      progress_message TEXT NOT NULL DEFAULT '',
       created_at INTEGER NOT NULL,
       started_at INTEGER,
       finished_at INTEGER
@@ -113,6 +116,9 @@ export async function migrate(): Promise<void> {
   await addColumnIfMissing(client, "meetings", "minutes_markdown", "TEXT NOT NULL DEFAULT ''");
   await addColumnIfMissing(client, "meetings", "insights_status", "TEXT NOT NULL DEFAULT 'none'");
   await addColumnIfMissing(client, "meetings", "insights_markdown", "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing(client, "transcription_jobs", "progress_percent", "INTEGER NOT NULL DEFAULT 0");
+  await addColumnIfMissing(client, "transcription_jobs", "progress_stage", "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing(client, "transcription_jobs", "progress_message", "TEXT NOT NULL DEFAULT ''");
 }
 
 async function addColumnIfMissing(
