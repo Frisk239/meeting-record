@@ -207,11 +207,13 @@ def transcribe_file(
             if is_temp:
                 tmp_wav = wav_path
         except Exception as e:
+            # Keep message UTF-8 / mostly English so Windows consoles and JSON stay readable
+            msg = f"audio convert failed: {e}"
             return {
                 "status": "failed",
                 "engine": "funasr",
                 "segments": [],
-                "errorMessage": f"音频转码失败: {e}",
+                "errorMessage": msg[:500],
                 "trace": traceback.format_exc()[-2000:],
             }
 

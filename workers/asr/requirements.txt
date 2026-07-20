@@ -9,5 +9,5 @@ torchaudio
 numpy
 soundfile
 librosa>=0.10.0
-# Optional but strongly recommended on Windows for mp3/webm decode:
-# install system ffmpeg and ensure it is on PATH
+# Bundled ffmpeg binary (m4a/mp3/webm on Windows without system install)
+imageio-ffmpeg>=0.4.9

@@ -364,9 +364,9 @@ export function MeetingDetailPage() {
           className={`job-banner${meeting.status === "failed" && !isTranscribing(meeting) ? " fail" : ""}`}
         >
           <div className="job-banner-col">
-            <div className="job-banner-main">
+            <div className="job-banner-top">
               <span className="dot" />
-              <span>{banner}</span>
+              <span className="job-banner-text">{banner}</span>
               {isTranscribing(meeting) && meeting.jobs[0] ? (
                 <span className="job-pct">
                   {Math.max(0, Math.min(100, meeting.jobs[0].progressPercent || 0))}%
@@ -391,27 +391,27 @@ export function MeetingDetailPage() {
             {meeting.status === "failed" && meeting.jobs[0]?.errorMessage ? (
               <p className="job-error-detail">{meeting.jobs[0].errorMessage}</p>
             ) : null}
+            {isTranscribing(meeting) ? (
+              <div className="job-banner-actions">
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm danger"
+                  disabled={busy}
+                  onClick={() => setConfirm("cancel")}
+                >
+                  终止转写
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm danger mobile-only"
+                  disabled={busy}
+                  onClick={() => setConfirm("delete")}
+                >
+                  放弃并删除
+                </button>
+              </div>
+            ) : null}
           </div>
-          {isTranscribing(meeting) ? (
-            <div className="job-banner-actions">
-              <button
-                type="button"
-                className="btn btn-ghost btn-sm danger"
-                disabled={busy}
-                onClick={() => setConfirm("cancel")}
-              >
-                终止转写
-              </button>
-              <button
-                type="button"
-                className="btn btn-ghost btn-sm danger mobile-only"
-                disabled={busy}
-                onClick={() => setConfirm("delete")}
-              >
-                放弃并删除
-              </button>
-            </div>
-          ) : null}
         </div>
       ) : null}
 

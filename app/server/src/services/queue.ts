@@ -210,10 +210,11 @@ async function runJob(jobId: string): Promise<void> {
       .set({
         status: "failed",
         engine: result.engine,
-        errorMessage: (result.errorMessage || "转写失败").slice(0, 500),
+        // Store UTF-8 errors as-is (up to 800 chars) so multi-byte Chinese stays intact
+        errorMessage: (result.errorMessage || "转写失败").slice(0, 800),
         progressPercent: 100,
         progressStage: "error",
-        progressMessage: (result.errorMessage || "转写失败").slice(0, 240),
+        progressMessage: (result.errorMessage || "转写失败").slice(0, 400),
         finishedAt,
       })
       .where(eq(transcriptionJobs.id, jobId));
