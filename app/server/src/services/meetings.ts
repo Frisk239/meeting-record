@@ -44,6 +44,7 @@ export type MeetingDetail = MeetingListItem & {
     progressPercent: number;
     progressStage: string;
     progressMessage: string;
+    progressLog: string[];
     recordingId: string;
     createdAt: string;
     startedAt: string | null;
@@ -159,19 +160,30 @@ export async function getMeeting(
       createdAt: r.createdAt.toISOString(),
       durationMs: r.durationMs,
     })),
-    jobs: jobs.map((j: TranscriptionJob) => ({
-      id: j.id,
-      status: j.status,
-      engine: j.engine,
-      errorMessage: j.errorMessage,
-      progressPercent: j.progressPercent ?? 0,
-      progressStage: j.progressStage || "",
-      progressMessage: j.progressMessage || "",
-      recordingId: j.recordingId,
-      createdAt: j.createdAt.toISOString(),
-      startedAt: iso(j.startedAt),
-      finishedAt: iso(j.finishedAt),
-    })),
+    jobs: jobs.map((j: TranscriptionJob) => {
+      let progressLog: string[] = [];
+      try {
+        const raw = j.progressLog || "[]";
+        const parsed = JSON.parse(raw) as unknown;
+        if (Array.isArray(parsed)) progressLog = parsed.map(String);
+      } catch {
+        progressLog = [];
+      }
+      return {
+        id: j.id,
+        status: j.status,
+        engine: j.engine,
+        errorMessage: j.errorMessage,
+        progressPercent: j.progressPercent ?? 0,
+        progressStage: j.progressStage || "",
+        progressMessage: j.progressMessage || "",
+        progressLog,
+        recordingId: j.recordingId,
+        createdAt: j.createdAt.toISOString(),
+        startedAt: iso(j.startedAt),
+        finishedAt: iso(j.finishedAt),
+      };
+    }),
     transcript: segs.map((s: TranscriptSegment) => ({
       id: s.id,
       idx: s.idx,

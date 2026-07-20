@@ -147,6 +147,14 @@ async function runJob(jobId: string): Promise<void> {
 
   const t0 = Date.now();
   let lastPct = -1;
+  let logBuf: string[] = [];
+  const pushLog = (line: string) => {
+    const ts = new Date().toISOString().slice(11, 19);
+    logBuf.push(`[${ts}] ${line}`.slice(0, 400));
+    if (logBuf.length > 80) logBuf = logBuf.slice(-80);
+  };
+  pushLog(`start ${engine.name} file=${rec.originalFilename || rec.storagePath}`);
+
   const result = await engine.transcribe({
     audioPath: rec.storagePath,
     mimeType: rec.mimeType,
@@ -154,8 +162,18 @@ async function runJob(jobId: string): Promise<void> {
     meetingTitle: meeting.title,
     jobId,
     onProgress: (p) => {
-      // fire-and-forget DB write; throttle tiny updates
-      if (p.percent === lastPct && p.percent < 100) return;
+      if (p.logLine) pushLog(p.logLine);
+      // percent < 0 means log-only
+      if (p.percent < 0) {
+        void openDb()
+          .update(transcriptionJobs)
+          .set({ progressLog: JSON.stringify(logBuf) })
+          .where(eq(transcriptionJobs.id, jobId))
+          .then(() => undefined)
+          .catch(() => undefined);
+        return;
+      }
+      if (p.percent === lastPct && p.percent < 100 && !p.message) return;
       lastPct = p.percent;
       void openDb()
         .update(transcriptionJobs)
@@ -163,6 +181,7 @@ async function runJob(jobId: string): Promise<void> {
           progressPercent: p.percent,
           progressStage: p.stage.slice(0, 64),
           progressMessage: (p.message || "").slice(0, 240),
+          progressLog: JSON.stringify(logBuf),
         })
         .where(eq(transcriptionJobs.id, jobId))
         .then(() => undefined)
@@ -205,6 +224,7 @@ async function runJob(jobId: string): Promise<void> {
   const finishedAt = new Date();
 
   if (result.status === "failed") {
+    pushLog(`ERROR ${result.errorMessage || "failed"}`);
     await db
       .update(transcriptionJobs)
       .set({
@@ -215,6 +235,7 @@ async function runJob(jobId: string): Promise<void> {
         progressPercent: 100,
         progressStage: "error",
         progressMessage: (result.errorMessage || "转写失败").slice(0, 400),
+        progressLog: JSON.stringify(logBuf),
         finishedAt,
       })
       .where(eq(transcriptionJobs.id, jobId));
@@ -247,6 +268,7 @@ async function runJob(jobId: string): Promise<void> {
   }
 
   const jobStatus = result.status === "degraded" ? "degraded" : "succeeded";
+  pushLog(`done status=${jobStatus} segments=${result.segments.length}`);
   await db
     .update(transcriptionJobs)
     .set({
@@ -256,6 +278,7 @@ async function runJob(jobId: string): Promise<void> {
       progressPercent: 100,
       progressStage: "done",
       progressMessage: "转写完成",
+      progressLog: JSON.stringify(logBuf),
       finishedAt,
     })
     .where(eq(transcriptionJobs.id, jobId));
@@ -321,6 +344,7 @@ export async function createJobForRecording(input: {
     progressPercent: 0,
     progressStage: "queued",
     progressMessage: "排队中",
+    progressLog: "[]",
     createdAt: now,
     startedAt: null,
     finishedAt: null,

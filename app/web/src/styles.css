@@ -1280,6 +1280,35 @@ button {
   overflow: auto;
 }
 
+.job-log {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.job-log summary {
+  cursor: pointer;
+  user-select: none;
+  font-weight: 600;
+  color: var(--body-strong);
+  padding: 2px 0;
+}
+
+.job-log-pre {
+  margin: 6px 0 0;
+  padding: 8px 10px;
+  max-height: 180px;
+  overflow: auto;
+  border-radius: var(--radius-sm);
+  background: var(--surface-dark, #1a1a18);
+  color: #e8e6e1;
+  font-size: 11px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+}
+
 .job-banner-actions {
   display: flex;
   flex-wrap: wrap;

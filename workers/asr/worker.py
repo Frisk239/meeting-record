@@ -28,10 +28,25 @@ os.environ.setdefault("MKL_NUM_THREADS", "4")
 
 _MODEL = None
 _MODEL_KEY: str | None = None
+_PATCHED = False
 
 
 def log(msg: str) -> None:
     print(msg, file=sys.stderr, flush=True)
+
+
+def _ensure_patches() -> None:
+    global _PATCHED
+    if _PATCHED:
+        return
+    try:
+        from funasr_patches import apply_funasr_patches
+
+        apply_funasr_patches()
+        _PATCHED = True
+        log("[asr-worker] FunASR quality patch applied (timestamp_sentence None-safe)")
+    except Exception as e:
+        log(f"[asr-worker] FunASR patch failed (will still try): {e}")
 
 
 def load_model(
@@ -47,6 +62,7 @@ def load_model(
     if _MODEL is not None and _MODEL_KEY == key:
         return _MODEL
 
+    _ensure_patches()
     from funasr import AutoModel  # type: ignore
 
     kwargs: dict[str, Any] = {
@@ -59,7 +75,9 @@ def load_model(
     }
     if spk_model:
         kwargs["spk_model"] = spk_model
-    # FunASR warns: without punc_model, diarization falls back to vad_segment mode
+        # Prefer punc_segment when punc present (better sentence boundaries for diarization)
+        if punc_model:
+            kwargs["spk_mode"] = "punc_segment"
     if punc_model:
         kwargs["punc_model"] = punc_model
 
@@ -217,7 +235,8 @@ def transcribe_file(
                 "trace": traceback.format_exc()[-2000:],
             }
 
-        progress("loading_model", 25, "加载 FunASR 模型（首次较慢）")
+        progress("loading_model", 25, "loading FunASR models")
+        # Soft crawl while model loads (parent can also tick elapsed)
         try:
             model = load_model(model_id, vad_model, spk_model, device, hub, punc_model)
         except Exception as e:
@@ -228,18 +247,61 @@ def transcribe_file(
                 "errorMessage": f"model load failed: {e}",
                 "trace": traceback.format_exc()[-2000:],
             }
+        progress("loading_model", 48, "models ready")
 
-        progress("transcribing", 55, "推理中（ASR + VAD + 说话人）")
+        progress("transcribing", 52, "ASR+VAD+speaker running")
         try:
+            import math
+            import threading
+
             t0 = time.time()
-            # Prefer ndarray path; FunASR also accepts wav path (ASCII temp)
-            raw = model.generate(
-                input=str(wav_path),
-                batch_size_s=batch_size_s,
-            )
+            stop_hb = threading.Event()
+
+            def _heartbeat() -> None:
+                # Soft percent 52→88 while generate blocks (long meetings)
+                while not stop_hb.wait(2.0):
+                    elapsed_s = time.time() - t0
+                    pct = min(
+                        88.0,
+                        52.0 + (88.0 - 52.0) * (1.0 - math.exp(-elapsed_s / 120.0)),
+                    )
+                    progress(
+                        "transcribing",
+                        int(pct),
+                        f"inferring… {int(elapsed_s)}s elapsed",
+                    )
+
+            hb = threading.Thread(target=_heartbeat, daemon=True)
+            hb.start()
+            try:
+                # Full quality: VAD+ASR+punc+cam++ (patches fix punc/timestamp None crash)
+                raw = model.generate(
+                    input=str(wav_path),
+                    batch_size_s=batch_size_s,
+                )
+            finally:
+                stop_hb.set()
+                hb.join(timeout=1.0)
+
             elapsed = time.time() - t0
-            progress("transcribing", 90, "解析结果")
+            progress("transcribing", 92, "parsing segments")
             segments = parse_funasr_result(raw)
+            if not segments:
+                # Last-resort: one segment from raw text if any
+                try:
+                    if isinstance(raw, list) and raw and isinstance(raw[0], dict):
+                        t = _clean_text(str(raw[0].get("text") or ""))
+                        if t:
+                            segments = [
+                                {
+                                    "speaker": "Speaker 0",
+                                    "startMs": 0,
+                                    "endMs": 0,
+                                    "text": t,
+                                }
+                            ]
+                except Exception:
+                    pass
             if not segments:
                 return {
                     "status": "failed",
@@ -249,10 +311,9 @@ def transcribe_file(
                     "rawType": type(raw).__name__,
                     "elapsedSec": round(elapsed, 3),
                 }
-            status = "succeeded"
-            progress("done", 100, f"完成 {len(segments)} 段")
+            progress("done", 100, f"done {len(segments)} segments in {elapsed:.1f}s")
             return {
-                "status": status,
+                "status": "succeeded",
                 "engine": "funasr",
                 "segments": segments,
                 "elapsedSec": round(elapsed, 3),
@@ -261,11 +322,14 @@ def transcribe_file(
                 "spk": spk_model or "",
             }
         except Exception as e:
+            err = f"generate failed: {e}"
+            log(f"[asr-worker] {err}")
+            log(traceback.format_exc()[-1500:])
             return {
                 "status": "failed",
                 "engine": "funasr",
                 "segments": [],
-                "errorMessage": f"generate failed: {e}",
+                "errorMessage": err[:500],
                 "trace": traceback.format_exc()[-2000:],
             }
     finally:

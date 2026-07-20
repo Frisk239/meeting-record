@@ -20,6 +20,8 @@ export type AsrProgress = {
   stage: string;
   percent: number;
   message: string;
+  /** Optional raw log line for UI console */
+  logLine?: string;
 };
 
 export type AsrInput = {

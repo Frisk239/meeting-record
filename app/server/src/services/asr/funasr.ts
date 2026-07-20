@@ -209,13 +209,15 @@ export class FunasrEngine implements AsrEngine {
                 percent?: number;
                 message?: string;
               };
+              const msg = String(p.message || "");
               input.onProgress?.({
                 stage: String(p.stage || ""),
                 percent: Number(p.percent) || 0,
-                message: String(p.message || ""),
+                message: msg,
+                logLine: `[${p.percent}%] ${p.stage} ${msg}`.trim(),
               });
               console.log(
-                `[asr/funasr] progress ${p.percent}% ${p.stage} ${p.message || ""}`,
+                `[asr/funasr] progress ${p.percent}% ${p.stage} ${msg}`,
               );
             } catch {
               // ignore
@@ -226,7 +228,29 @@ export class FunasrEngine implements AsrEngine {
           const isBar = line.includes("%|") || line.includes("it/s");
           if (isBar && now - lastLogAt < 2000) continue;
           lastLogAt = now;
-          console.log(`[asr/funasr] ${line.slice(0, 240)}`);
+          const clipped = line.slice(0, 240);
+          console.log(`[asr/funasr] ${clipped}`);
+          // Forward useful log lines to UI (not full tqdm spam)
+          if (
+            !isBar &&
+            (line.includes("[INFO]") ||
+              line.includes("[WARNING]") ||
+              line.includes("[asr-worker]") ||
+              line.includes("[audio_io]") ||
+              line.includes("Loading") ||
+              line.includes("Building") ||
+              line.includes("error") ||
+              line.includes("Error") ||
+              line.includes("failed") ||
+              line.includes("patch"))
+          ) {
+            input.onProgress?.({
+              stage: "log",
+              percent: -1, // signal: log only, don't move bar
+              message: "",
+              logLine: clipped,
+            });
+          }
         }
       });
 

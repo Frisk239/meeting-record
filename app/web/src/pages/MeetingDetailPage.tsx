@@ -411,6 +411,15 @@ export function MeetingDetailPage() {
                 </button>
               </div>
             ) : null}
+            {(isTranscribing(meeting) || meeting.status === "failed") &&
+            meeting.jobs[0]?.progressLog?.length ? (
+              <details className="job-log" open={isTranscribing(meeting)}>
+                <summary>转写日志（{meeting.jobs[0].progressLog.length} 行）</summary>
+                <pre className="job-log-pre">
+                  {meeting.jobs[0].progressLog.join("\n")}
+                </pre>
+              </details>
+            ) : null}
           </div>
         </div>
       ) : null}

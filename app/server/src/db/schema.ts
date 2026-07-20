@@ -84,6 +84,8 @@ export const transcriptionJobs = sqliteTable("transcription_jobs", {
   /** queued | convert | loading_model | transcribing | minutes | done | error */
   progressStage: text("progress_stage").notNull().default(""),
   progressMessage: text("progress_message").notNull().default(""),
+  /** JSON string array of recent log lines for operator UI */
+  progressLog: text("progress_log").notNull().default("[]"),
   createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
   startedAt: integer("started_at", { mode: "timestamp_ms" }),
   finishedAt: integer("finished_at", { mode: "timestamp_ms" }),

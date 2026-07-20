@@ -75,6 +75,7 @@ export async function migrate(): Promise<void> {
       progress_percent INTEGER NOT NULL DEFAULT 0,
       progress_stage TEXT NOT NULL DEFAULT '',
       progress_message TEXT NOT NULL DEFAULT '',
+      progress_log TEXT NOT NULL DEFAULT '[]',
       created_at INTEGER NOT NULL,
       started_at INTEGER,
       finished_at INTEGER
@@ -119,6 +120,7 @@ export async function migrate(): Promise<void> {
   await addColumnIfMissing(client, "transcription_jobs", "progress_percent", "INTEGER NOT NULL DEFAULT 0");
   await addColumnIfMissing(client, "transcription_jobs", "progress_stage", "TEXT NOT NULL DEFAULT ''");
   await addColumnIfMissing(client, "transcription_jobs", "progress_message", "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing(client, "transcription_jobs", "progress_log", "TEXT NOT NULL DEFAULT '[]'");
 }
 
 async function addColumnIfMissing(

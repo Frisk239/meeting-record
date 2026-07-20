@@ -67,6 +67,7 @@ export type MeetingDetail = MeetingListItem & {
     progressPercent: number;
     progressStage: string;
     progressMessage: string;
+    progressLog: string[];
     recordingId: string;
     createdAt: string;
     startedAt: string | null;
