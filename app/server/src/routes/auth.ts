@@ -15,11 +15,17 @@ import {
   logout,
   register,
   updateLlmSettings,
+  updateProfile,
   type PublicUser,
 } from "../services/auth.js";
 
 function toPublic(user: User): PublicUser {
-  return { id: user.id, username: user.username, email: user.email };
+  return {
+    id: user.id,
+    username: user.username,
+    email: user.email,
+    displayName: (user.displayName || "").trim() || user.username,
+  };
 }
 
 function setSessionCookie(
@@ -122,4 +128,16 @@ authRoutes.put("/settings/llm", requireAuth, async (c) => {
   const user = c.get("user");
   const llm = await updateLlmSettings(user.id, body.data);
   return c.json({ llm });
+});
+
+const profileSchema = z.object({
+  displayName: z.string().max(64).optional(),
+});
+
+authRoutes.put("/settings/profile", requireAuth, async (c) => {
+  const body = profileSchema.safeParse(await c.req.json().catch(() => ({})));
+  if (!body.success) throw badRequest("请求体无效");
+  const user = c.get("user");
+  const next = await updateProfile(user.id, body.data);
+  return c.json({ user: next });
 });

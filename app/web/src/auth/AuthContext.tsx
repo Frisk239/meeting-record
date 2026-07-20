@@ -13,6 +13,7 @@ import {
   login as apiLogin,
   logout as apiLogout,
   putLlmSettings,
+  putProfile,
   register as apiRegister,
   type LlmSettings,
   type PublicUser,
@@ -38,6 +39,7 @@ type AuthState = {
     apiKey: string;
     clearApiKey?: boolean;
   }) => Promise<string | null>;
+  saveProfile: (displayName: string) => Promise<string | null>;
 };
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -136,6 +138,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  const saveProfile = useCallback(async (displayName: string) => {
+    const res = await putProfile({ displayName });
+    if (!res.ok) return res.data.message || "保存失败";
+    setUser(res.data.user);
+    return null;
+  }, []);
+
   const value = useMemo(
     () => ({
       loading,
@@ -148,6 +157,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       register,
       logout,
       saveLlm,
+      saveProfile,
     }),
     [
       loading,
@@ -160,6 +170,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       register,
       logout,
       saveLlm,
+      saveProfile,
     ],
   );
 

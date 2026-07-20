@@ -13,6 +13,7 @@
 | S2 | 纪要通路 | 转写成功 → **自动** AI总结 → 编辑 → **导出 MD/PDF** | **done**（`s2-auto-minutes-export-impl-1`） |
 | S3 | 追问子页 | 纪要右下角进入；基于本场原文/纪要提问作答 | **done**（`s3s4-qa-insights-impl-1`） |
 | S4 | 外脑按需 | 详情外脑 Tab；显式生成，不自动 | **done**（同 `s3s4-qa-insights-impl-1`） |
+| S5 | 原型对齐 | 分块纪要 · 原文播放 · 追加录音/导入 · 个人资料 · Job 横幅 | **done**（`s5-prototype-parity-impl-1`） |
 | — | 后续 | 图解、换角度总结、Speaker 改名、搜索… | 待价值排序；**不做探索** |
 
 ## 状态词

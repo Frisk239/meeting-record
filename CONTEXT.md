@@ -147,14 +147,13 @@ _Avoid_: 首版 Postgres/多节点对象存储；无数据库的纯散落文件�
 
 ## 当前方位（2026-07-19）
 
-- **阶段：** **P0 能力闭环已可演示**（含 FunASR 真 wav Job 证据；默认 dev 仍可 mock）  
-- **工程：** Slice Owner · [workflow](docs/agents/workflow.md) · main 本地提交（push 由人手动）  
-- **上一刀补证：** FunASR 真转写 — [`docs/progress/s1b-funasr-real-wav-evidence.md`](docs/progress/s1b-funasr-real-wav-evidence.md)  
-- **已交付：** S0b–S4 · S1b 旁路 · API/Playwright 部分 E2E  
+- **阶段：** **原型 MVP 功能对齐已合本地 main**（S5 分块纪要/播放器/追加/个人资料）  
+- **工程：** Slice Owner · push 由人手动  
+- **上一刀：** S5 原型对齐 — [`docs/progress/s5-prototype-parity-impl-1.md`](docs/progress/s5-prototype-parity-impl-1.md)  
+- **已交付：** S0b–S4 · S1b FunASR · S5 原型硬能力  
 - **应用：** `app/web` + `app/server` + `workers/asr`  
-- **Store：** Drizzle + `@libsql/client` + `DATA_DIR/media`  
-- **残余 polish（非阻断）：** PDF CJK 字体、原文播放、Playwright 文件上传手势、多说话人长会实测、4G RSS 表  
-- **下一步建议：** 人 `git push` · 多说话人样例 · 播放器 polish  
+- **残余 polish：** PDF CJK、Playwright 完整上传手势脚本、多说话人长会、4G RSS  
+- **下一步建议：** 人 `git push` · Playwright 主路径脚本固化  
   
 
 ## 相关入口

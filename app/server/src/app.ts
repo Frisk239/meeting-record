@@ -33,6 +33,7 @@ export function createApp() {
         model: config.funasrModel,
         vad: config.funasrVad,
         spk: config.funasrSpk,
+        punc: config.funasrPunc,
         device: config.funasrDevice,
       },
     }),

@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { Hono } from "hono";
 import { z } from "zod";
 import { badRequest } from "../lib/errors.js";
@@ -7,6 +8,7 @@ import {
   attachRecordingAndEnqueue,
   createMeeting,
   getMeeting,
+  getOwnedRecordingFile,
   listMeetings,
   renameMeeting,
 } from "../services/meetings.js";
@@ -14,6 +16,7 @@ import { generateInsights, getInsights } from "../services/insights.js";
 import {
   generateMinutesForMeeting,
   getMinutes,
+  saveMinutesDoc,
   saveMinutesMarkdown,
 } from "../services/minutes.js";
 import { askQuestion, listQa } from "../services/qa.js";
@@ -113,17 +116,88 @@ meetingRoutes.post("/:id/minutes/generate", async (c) => {
 });
 
 meetingRoutes.put("/:id/minutes", async (c) => {
-  const body = z
-    .object({ markdown: z.string() })
-    .safeParse(await c.req.json().catch(() => ({})));
-  if (!body.success) throw badRequest("请求体无效");
+  const raw = await c.req.json().catch(() => ({}));
   const user = c.get("user");
-  const minutes = await saveMinutesMarkdown(
-    user.id,
-    c.req.param("id"),
-    body.data.markdown,
-  );
+  const id = c.req.param("id");
+
+  if (raw && typeof raw === "object" && "markdown" in raw && Object.keys(raw as object).length === 1) {
+    const body = z.object({ markdown: z.string() }).safeParse(raw);
+    if (!body.success) throw badRequest("请求体无效");
+    const minutes = await saveMinutesMarkdown(user.id, id, body.data.markdown);
+    return c.json({ minutes });
+  }
+
+  const structured = z
+    .object({
+      topic: z.string().optional(),
+      time: z.string().optional(),
+      place: z.string().optional(),
+      participants: z.string().optional(),
+      goal: z.string().optional(),
+      topics: z
+        .array(
+          z.object({
+            title: z.string(),
+            bullets: z.array(z.string()).default([]),
+            sub: z.string().optional(),
+          }),
+        )
+        .optional(),
+      disputes: z.array(z.string()).optional(),
+      actionItems: z
+        .array(z.object({ owner: z.string(), action: z.string() }))
+        .optional(),
+      timeline: z
+        .array(
+          z.union([
+            z.string(),
+            z.object({
+              t: z.string().optional(),
+              title: z.string().optional(),
+              body: z.string().optional(),
+            }),
+          ]),
+        )
+        .optional(),
+      markdown: z.string().optional(),
+    })
+    .safeParse(raw);
+  if (!structured.success) throw badRequest("请求体无效");
+
+  if (
+    structured.data.markdown &&
+    structured.data.topic === undefined &&
+    structured.data.topics === undefined
+  ) {
+    const minutes = await saveMinutesMarkdown(user.id, id, structured.data.markdown);
+    return c.json({ minutes });
+  }
+
+  const minutes = await saveMinutesDoc(user.id, id, {
+    ...structured.data,
+    timeline: structured.data.timeline as
+      | string[]
+      | Array<{ t?: string; title?: string; body?: string }>
+      | undefined,
+  });
   return c.json({ minutes });
+});
+
+/** Serve latest (or specified) recording audio for transcript player. */
+meetingRoutes.get("/:id/audio", async (c) => {
+  const user = c.get("user");
+  const recordingId = c.req.query("recordingId") || undefined;
+  const file = await getOwnedRecordingFile(user.id, c.req.param("id"), recordingId);
+  const buf = await readFile(file.path);
+  return new Response(buf, {
+    status: 200,
+    headers: {
+      "content-type": file.mimeType || "application/octet-stream",
+      "content-length": String(buf.byteLength),
+      "accept-ranges": "bytes",
+      "cache-control": "private, max-age=3600",
+    },
+  });
 });
 
 meetingRoutes.get("/:id/qa", async (c) => {

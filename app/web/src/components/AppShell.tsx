@@ -22,7 +22,7 @@ export function AppShell() {
             我的
           </NavLink>
         </nav>
-        <div className="nav-user">{user?.username}</div>
+        <div className="nav-user">{user?.displayName || user?.username}</div>
       </header>
 
       <main className="page-main">

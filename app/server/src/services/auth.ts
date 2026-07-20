@@ -19,6 +19,7 @@ export type PublicUser = {
   id: string;
   username: string;
   email: string;
+  displayName: string;
 };
 
 export type LlmSettingsView = {
@@ -37,7 +38,12 @@ export type AuthBundle = {
 };
 
 function publicUser(u: User): PublicUser {
-  return { id: u.id, username: u.username, email: u.email };
+  return {
+    id: u.id,
+    username: u.username,
+    email: u.email,
+    displayName: (u.displayName || "").trim() || u.username,
+  };
 }
 
 function normalizeUsername(raw: string): string {
@@ -112,6 +118,7 @@ export async function register(input: {
     username,
     email,
     passwordHash,
+    displayName: username,
     llmBaseUrl: "",
     llmModel: "",
     llmApiKey: "",
@@ -268,4 +275,28 @@ export function resolveEffectiveLlm(user: User): {
     modelId: user.llmModel?.trim() || config.llm.model,
     apiKey: user.llmApiKey?.trim() || config.llm.apiKey,
   };
+}
+
+export async function updateProfile(
+  userId: string,
+  input: { displayName?: string },
+): Promise<PublicUser> {
+  const db = openDb();
+  const found = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+  const user = found[0];
+  if (!user) throw unauthorized();
+
+  let displayName = user.displayName || "";
+  if (input.displayName !== undefined) {
+    displayName = String(input.displayName).trim().slice(0, 64);
+  }
+
+  const now = new Date();
+  await db
+    .update(users)
+    .set({ displayName, updatedAt: now })
+    .where(eq(users.id, userId));
+
+  const updated = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+  return publicUser(updated[0]!);
 }

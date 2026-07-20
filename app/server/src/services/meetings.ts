@@ -34,6 +34,7 @@ export type MeetingDetail = MeetingListItem & {
     byteSize: number;
     source: string;
     createdAt: string;
+    durationMs: number | null;
   }>;
   jobs: Array<{
     id: string;
@@ -53,6 +54,9 @@ export type MeetingDetail = MeetingListItem & {
     endMs: number;
     text: string;
   }>;
+  /** Latest recording for playback UI */
+  primaryRecordingId: string | null;
+  durationMs: number | null;
   minutesMarkdown: string;
   minutes: unknown | null;
   insightsStatus: string;
@@ -131,6 +135,16 @@ export async function getMeeting(
     .where(eq(transcriptSegments.meetingId, meetingId))
     .orderBy(transcriptSegments.idx);
 
+  const primary = recs[0] ?? null;
+  const lastEnd =
+    segs.length > 0
+      ? Math.max(...segs.map((s: TranscriptSegment) => s.endMs || 0))
+      : null;
+  const durationMs =
+    primary?.durationMs ??
+    lastEnd ??
+    (primary?.byteSize ? Math.max(1000, Math.round(primary.byteSize / 16)) : null);
+
   return {
     ...toListItem(m, jobs[0]?.status ?? null),
     recordings: recs.map((r: Recording) => ({
@@ -140,6 +154,7 @@ export async function getMeeting(
       byteSize: r.byteSize,
       source: r.source,
       createdAt: r.createdAt.toISOString(),
+      durationMs: r.durationMs,
     })),
     jobs: jobs.map((j: TranscriptionJob) => ({
       id: j.id,
@@ -159,6 +174,8 @@ export async function getMeeting(
       endMs: s.endMs,
       text: s.text,
     })),
+    primaryRecordingId: primary?.id ?? null,
+    durationMs,
     minutesMarkdown: m.minutesMarkdown || "",
     minutes: m.minutesJson
       ? (() => {
@@ -171,6 +188,45 @@ export async function getMeeting(
       : null,
     insightsStatus: m.insightsStatus || "none",
     insightsMarkdown: m.insightsMarkdown || "",
+  };
+}
+
+/** Resolve owned recording file for streaming. */
+export async function getOwnedRecordingFile(
+  userId: string,
+  meetingId: string,
+  recordingId?: string,
+): Promise<{ path: string; mimeType: string; filename: string }> {
+  const db = openDb();
+  await assertMeetingOwner(userId, meetingId);
+  let rec: Recording | undefined;
+  if (recordingId) {
+    const rows = await db
+      .select()
+      .from(recordings)
+      .where(
+        and(
+          eq(recordings.id, recordingId),
+          eq(recordings.meetingId, meetingId),
+          eq(recordings.userId, userId),
+        ),
+      )
+      .limit(1);
+    rec = rows[0];
+  } else {
+    const rows = await db
+      .select()
+      .from(recordings)
+      .where(and(eq(recordings.meetingId, meetingId), eq(recordings.userId, userId)))
+      .orderBy(desc(recordings.createdAt))
+      .limit(1);
+    rec = rows[0];
+  }
+  if (!rec) throw notFound("录音不存在");
+  return {
+    path: rec.storagePath,
+    mimeType: rec.mimeType || "application/octet-stream",
+    filename: rec.originalFilename || "audio",
   };
 }
 

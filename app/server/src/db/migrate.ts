@@ -12,6 +12,7 @@ export async function migrate(): Promise<void> {
       username TEXT NOT NULL UNIQUE,
       email TEXT NOT NULL UNIQUE,
       password_hash TEXT NOT NULL,
+      display_name TEXT NOT NULL DEFAULT '',
       llm_base_url TEXT NOT NULL DEFAULT '',
       llm_model TEXT NOT NULL DEFAULT '',
       llm_api_key TEXT NOT NULL DEFAULT '',
@@ -106,6 +107,7 @@ export async function migrate(): Promise<void> {
     CREATE INDEX IF NOT EXISTS qa_meeting_id_idx ON qa_messages(meeting_id);
   `);
 
+  await addColumnIfMissing(client, "users", "display_name", "TEXT NOT NULL DEFAULT ''");
   await addColumnIfMissing(client, "meetings", "minutes_status", "TEXT NOT NULL DEFAULT 'none'");
   await addColumnIfMissing(client, "meetings", "minutes_json", "TEXT");
   await addColumnIfMissing(client, "meetings", "minutes_markdown", "TEXT NOT NULL DEFAULT ''");

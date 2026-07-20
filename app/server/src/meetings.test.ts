@@ -168,6 +168,52 @@ describe("meetings + upload + mock transcript", () => {
     assert.equal(insBody.insights.status, "ready");
     assert.ok(insBody.insights.markdown.includes("外脑") || insBody.insights.markdown.length > 20);
 
+    // Structured minutes save (prototype fields)
+    const putMin = await app.request(`/api/meetings/${upBody.meeting.id}/minutes`, {
+      method: "PUT",
+      headers: {
+        "content-type": "application/json",
+        cookie: `${config.cookieName}=${cookieA}`,
+      },
+      body: JSON.stringify({
+        topic: "结构化纪要标题",
+        place: "线上",
+        goal: "验收原型对齐",
+        actionItems: [{ owner: "研发", action: "补播放器" }],
+        disputes: [],
+        topics: [{ title: "议题A", bullets: ["要点1"] }],
+        timeline: ["00:00 · 开场"],
+      }),
+    });
+    assert.equal(putMin.status, 200);
+    const putMinBody = (await putMin.json()) as {
+      minutes: { topic: string; markdown: string; actionItems: Array<{ owner: string }> };
+    };
+    assert.equal(putMinBody.minutes.topic, "结构化纪要标题");
+    assert.ok(putMinBody.minutes.markdown.includes("结构化纪要标题"));
+    assert.equal(putMinBody.minutes.actionItems[0]?.owner, "研发");
+
+    // Audio stream for player
+    const audio = await app.request(`/api/meetings/${upBody.meeting.id}/audio`, {
+      headers: { cookie: `${config.cookieName}=${cookieA}` },
+    });
+    assert.equal(audio.status, 200);
+    const ab = await audio.arrayBuffer();
+    assert.ok(ab.byteLength > 0);
+
+    // Profile display name
+    const prof = await app.request("/api/auth/settings/profile", {
+      method: "PUT",
+      headers: {
+        "content-type": "application/json",
+        cookie: `${config.cookieName}=${cookieA}`,
+      },
+      body: JSON.stringify({ displayName: "阿丽" }),
+    });
+    assert.equal(prof.status, 200);
+    const profBody = (await prof.json()) as { user: { displayName: string } };
+    assert.equal(profBody.user.displayName, "阿丽");
+
     // Insights must not auto-fill on upload path without explicit call — we called explicitly above.
     // Verify list still user-scoped
     const list = await app.request("/api/meetings", {

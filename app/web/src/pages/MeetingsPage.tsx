@@ -90,7 +90,7 @@ export function MeetingsPage() {
       <header className="page-header">
         <div>
           <h1 className="page-title">笔记</h1>
-          <p className="muted">你好，{user?.username}</p>
+          <p className="muted">你好，{user?.displayName || user?.username}</p>
         </div>
         <div className="row gap wrap">
           <button

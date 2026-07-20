@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { uploadRecording } from "../api";
 
 type Phase = "idle" | "recording" | "paused" | "uploading" | "error";
 
 const LONG_PRESS_MS = 800;
+/** Mirrors server MAX_RECORDING_MINUTES default; hard stop on client. */
 const MAX_MS_DEFAULT = 60 * 60 * 1000;
 
 function formatElapsed(ms: number): string {
@@ -20,6 +21,10 @@ function formatElapsed(ms: number): string {
 
 export function RecordPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const appendMeetingId = (location.state as { appendMeetingId?: string } | null)
+    ?.appendMeetingId;
+
   const [phase, setPhase] = useState<Phase>("idle");
   const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -33,6 +38,7 @@ export function RecordPage() {
   const tickRef = useRef<number | null>(null);
   const pressTimerRef = useRef<number | null>(null);
   const pressRafRef = useRef<number | null>(null);
+  const maxHitRef = useRef(false);
 
   function clearTick() {
     if (tickRef.current != null) {
@@ -58,12 +64,18 @@ export function RecordPage() {
   function startTicker() {
     clearTick();
     tickRef.current = window.setInterval(() => {
-      setElapsed(accumulatedRef.current + (Date.now() - startedAtRef.current));
+      const next = accumulatedRef.current + (Date.now() - startedAtRef.current);
+      setElapsed(next);
+      if (next >= MAX_MS_DEFAULT && !maxHitRef.current) {
+        maxHitRef.current = true;
+        void finishAndUpload();
+      }
     }, 200);
   }
 
   async function startRecording() {
     setError(null);
+    maxHitRef.current = false;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
@@ -126,6 +138,7 @@ export function RecordPage() {
     setElapsed(0);
     setPhase("idle");
     setPressProgress(0);
+    maxHitRef.current = false;
   }
 
   async function finishAndUpload() {
@@ -154,15 +167,14 @@ export function RecordPage() {
       return;
     }
 
-    if (elapsed > MAX_MS_DEFAULT) {
-      // still upload; server has soft size cap
-    }
-
     const res = await uploadRecording({
       file: blob,
       filename: `browser-${new Date().toISOString().replace(/[:.]/g, "-")}.webm`,
       source: "browser",
-      title: `现场录音 ${new Date().toLocaleString("zh-CN", { hour12: false })}`,
+      meetingId: appendMeetingId,
+      title: appendMeetingId
+        ? undefined
+        : `现场录音 ${new Date().toLocaleString("zh-CN", { hour12: false })}`,
     });
 
     if (!res.ok) {
@@ -201,92 +213,118 @@ export function RecordPage() {
     setPressProgress(0);
   }
 
+  const title = appendMeetingId
+    ? "追加录音"
+    : `新录音 ${new Date().toLocaleString("zh-CN", {
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+      })}`;
+
   return (
-    <div className="page">
+    <div className="page record-page">
       <header className="page-header">
         <div>
-          <h1 className="page-title">录音</h1>
-          <p className="muted">点开始 · 长按结束并自动上传 · 默认最长 60 分钟</p>
+          <p className="caption muted">
+            <Link to={appendMeetingId ? `/meetings/${appendMeetingId}` : "/"}>← 返回</Link>
+          </p>
+          <h1 className="page-title">{title}</h1>
+          <p className="muted">
+            点击中间开始 · <strong>长按结束并上传</strong>（约 0.8 秒）· 上限{" "}
+            {MAX_MS_DEFAULT / 60000} 分钟
+          </p>
         </div>
       </header>
 
       <section className="record-stage card">
-        <div className={`timer ${phase === "recording" ? "live" : ""}`}>
-          {formatElapsed(elapsed)}
-        </div>
-        <p className="muted caption">
-          {phase === "idle" && "准备就绪"}
-          {phase === "recording" && "录音中… 长按下方按钮确认结束"}
+        <div className="record-status">
+          {phase === "idle" && "准备录音"}
+          {phase === "recording" && "录音中"}
           {phase === "paused" && "已暂停"}
           {phase === "uploading" && "正在上传并排队转写…"}
           {phase === "error" && "出错了"}
-        </p>
+        </div>
+        <div className={`timer ${phase === "recording" ? "live" : ""}`}>
+          {formatElapsed(elapsed)}
+        </div>
+        <div
+          className={`wave ${phase === "recording" ? "" : "paused"}`}
+          aria-hidden
+        >
+          {Array.from({ length: 9 }, (_, i) => (
+            <span key={i} />
+          ))}
+        </div>
 
         {error ? <p className="form-error">{error}</p> : null}
 
-        <div className="record-actions">
+        <div className="record-actions-proto">
+          {(phase === "recording" || phase === "paused") && (
+            <button
+              type="button"
+              className="rec-round"
+              title="丢弃"
+              onClick={discardRecording}
+            >
+              ✕
+            </button>
+          )}
+
           {phase === "idle" || phase === "error" ? (
-            <button type="button" className="btn btn-primary btn-lg" onClick={() => void startRecording()}>
-              开始录音
+            <button
+              type="button"
+              className="rec-main"
+              onClick={() => void startRecording()}
+              title="开始"
+            >
+              ●
             </button>
           ) : null}
 
+          {(phase === "recording" || phase === "paused") && (
+            <button
+              type="button"
+              className="rec-main hold-btn"
+              style={{ ["--press" as string]: String(pressProgress) }}
+              title="长按结束"
+              onPointerDown={onHoldStart}
+              onPointerUp={onHoldEnd}
+              onPointerLeave={onHoldEnd}
+              onPointerCancel={onHoldEnd}
+            >
+              {phase === "paused" ? "▶" : "●"}
+            </button>
+          )}
+
           {phase === "recording" ? (
-            <>
-              <button type="button" className="btn btn-ghost" onClick={pauseRecording}>
-                暂停
-              </button>
-              <button
-                type="button"
-                className="btn btn-primary btn-lg hold-btn"
-                style={{ ["--press" as string]: String(pressProgress) }}
-                onPointerDown={onHoldStart}
-                onPointerUp={onHoldEnd}
-                onPointerLeave={onHoldEnd}
-                onPointerCancel={onHoldEnd}
-              >
-                长按结束
-              </button>
-              <button type="button" className="btn btn-ghost danger" onClick={discardRecording}>
-                丢弃
-              </button>
-            </>
+            <button
+              type="button"
+              className="rec-round"
+              title="暂停"
+              onClick={pauseRecording}
+            >
+              Ⅱ
+            </button>
           ) : null}
-
           {phase === "paused" ? (
-            <>
-              <button type="button" className="btn btn-ghost" onClick={resumeRecording}>
-                继续
-              </button>
-              <button
-                type="button"
-                className="btn btn-primary btn-lg hold-btn"
-                style={{ ["--press" as string]: String(pressProgress) }}
-                onPointerDown={onHoldStart}
-                onPointerUp={onHoldEnd}
-                onPointerLeave={onHoldEnd}
-                onPointerCancel={onHoldEnd}
-              >
-                长按结束
-              </button>
-              <button type="button" className="btn btn-ghost danger" onClick={discardRecording}>
-                丢弃
-              </button>
-            </>
-          ) : null}
-
-          {phase === "uploading" ? (
-            <p className="muted">请稍候…</p>
+            <button
+              type="button"
+              className="rec-round"
+              title="继续"
+              onClick={resumeRecording}
+            >
+              ▶
+            </button>
           ) : null}
         </div>
-      </section>
 
-      <p className="muted caption">
-        也可在笔记页「导入音频」。默认 mock ASR；生产设 ASR_ENGINE=funasr 使用 CPU FunASR 旁路。
-      </p>
-      <Link className="btn btn-ghost" to="/">
-        返回笔记
-      </Link>
+        <p className="hold-hint muted caption">
+          {phase === "recording" || phase === "paused"
+            ? "长按中间按钮确认结束并自动上传"
+            : "也可在笔记页「导入音频」"}
+        </p>
+      </section>
     </div>
   );
 }

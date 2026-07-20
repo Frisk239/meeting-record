@@ -3,8 +3,9 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 
 export function SettingsPage() {
-  const { user, llm, appName, logout, saveLlm } = useAuth();
+  const { user, llm, appName, logout, saveLlm, saveProfile } = useAuth();
   const navigate = useNavigate();
+  const [displayName, setDisplayName] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
   const [modelId, setModelId] = useState("");
   const [apiKey, setApiKey] = useState("");
@@ -13,11 +14,32 @@ export function SettingsPage() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
+    if (user) setDisplayName(user.displayName || user.username);
+  }, [user]);
+
+  useEffect(() => {
     if (!llm) return;
     setBaseUrl(llm.baseUrl || "");
     setModelId(llm.modelId || "");
     setApiKey(llm.apiKeyMasked || "");
   }, [llm]);
+
+  async function onSaveProfile(e: FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const err = await saveProfile(displayName.trim());
+      if (err) {
+        setError(err);
+        return;
+      }
+      setMessage("已保存个人资料");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function onSave(e: FormEvent) {
     e.preventDefault();
@@ -63,6 +85,8 @@ export function SettingsPage() {
     navigate("/login", { replace: true });
   }
 
+  const initial = (user?.displayName || user?.username || "?").slice(0, 1).toUpperCase();
+
   return (
     <div className="page">
       <header className="page-header">
@@ -72,19 +96,44 @@ export function SettingsPage() {
         </div>
       </header>
 
-      <section className="card stack">
-        <h2 className="title-sm">账号</h2>
-        <div className="kv">
-          <span className="muted">用户名</span>
-          <span>{user?.username}</span>
+      <section className="card stack profile-card">
+        <div className="profile-row">
+          <span className="nav-avatar lg">{initial}</span>
+          <div>
+            <div className="profile-name">{user?.displayName || user?.username}</div>
+            <div className="profile-email muted">{user?.email}</div>
+          </div>
         </div>
-        <div className="kv">
-          <span className="muted">邮箱</span>
-          <span>{user?.email}</span>
-        </div>
-        <button type="button" className="btn btn-ghost danger" onClick={onLogout}>
-          退出登录
-        </button>
+        <h2 className="title-sm">个人中心</h2>
+        <form className="stack" onSubmit={onSaveProfile}>
+          <label className="field">
+            <span>显示名称</span>
+            <input
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              placeholder="怎么称呼你"
+              maxLength={64}
+            />
+          </label>
+          <label className="field">
+            <span>账号</span>
+            <input value={user?.email || ""} disabled />
+            <span className="hint muted">登录邮箱（不可改）</span>
+          </label>
+          <label className="field">
+            <span>产品显示名</span>
+            <input value={appName} disabled />
+            <span className="hint muted">部署可用 APP_NAME 配置，非用户个人项</span>
+          </label>
+          <div className="row gap wrap">
+            <button className="btn btn-primary" type="submit" disabled={busy}>
+              保存资料
+            </button>
+            <button type="button" className="btn btn-ghost danger" onClick={onLogout}>
+              退出登录
+            </button>
+          </div>
+        </form>
       </section>
 
       <section className="card stack">
@@ -135,7 +184,7 @@ export function SettingsPage() {
 
           <div className="row gap wrap">
             <button className="btn btn-primary" type="submit" disabled={busy}>
-              {busy ? "保存中…" : "保存"}
+              {busy ? "保存中…" : "保存 LLM 配置"}
             </button>
             <button
               className="btn btn-ghost"

@@ -17,7 +17,7 @@ export type MinutesDoc = {
   place: string;
   participants: string;
   goal: string;
-  topics: Array<{ title: string; bullets: string[] }>;
+  topics: Array<{ title: string; bullets: string[]; sub?: string }>;
   disputes: string[];
   actionItems: Array<{ owner: string; action: string }>;
   timeline: string[];
@@ -58,6 +58,7 @@ function renderMarkdown(doc: Omit<MinutesDoc, "markdown" | "source" | "model" | 
   } else {
     doc.topics.forEach((t, i) => {
       lines.push(`### ${i + 1}. ${t.title}`);
+      if (t.sub) lines.push(`*${t.sub}*`);
       for (const b of t.bullets || []) lines.push(`- ${b}`);
       lines.push("");
     });
@@ -314,6 +315,95 @@ export async function saveMinutesMarkdown(
       minutesJson: JSON.stringify(doc),
       minutesMarkdown: markdown,
       minutesStatus: "ready",
+      updatedAt: now,
+    })
+    .where(eq(meetings.id, meetingId));
+
+  return doc;
+}
+
+/** Save structured minutes (prototype-style fields) and re-render markdown. */
+export async function saveMinutesDoc(
+  userId: string,
+  meetingId: string,
+  patch: Partial<{
+    topic: string;
+    time: string;
+    place: string;
+    participants: string;
+    goal: string;
+    topics: Array<{ title: string; bullets: string[]; sub?: string }>;
+    disputes: string[];
+    actionItems: Array<{ owner: string; action: string }>;
+    timeline: string[] | Array<{ t?: string; title?: string; body?: string }>;
+  }>,
+): Promise<MinutesDoc> {
+  const db = openDb();
+  const rows = await db
+    .select()
+    .from(meetings)
+    .where(and(eq(meetings.id, meetingId), eq(meetings.userId, userId)))
+    .limit(1);
+  const m = rows[0];
+  if (!m) throw notFound("会议不存在");
+
+  let current: MinutesDoc;
+  if (m.minutesJson) {
+    try {
+      current = JSON.parse(m.minutesJson) as MinutesDoc;
+    } catch {
+      current = mockFromTranscript(m, []);
+    }
+  } else {
+    current = mockFromTranscript(m, []);
+  }
+
+  const timeline = Array.isArray(patch.timeline)
+    ? patch.timeline.map((t) => {
+        if (typeof t === "string") return t;
+        const parts = [t.t, t.title, t.body].filter(Boolean);
+        return parts.join(" · ") || "";
+      })
+    : current.timeline;
+
+  const base = {
+    topic: patch.topic !== undefined ? String(patch.topic) : current.topic,
+    time: patch.time !== undefined ? String(patch.time) : current.time,
+    place: patch.place !== undefined ? String(patch.place) : current.place,
+    participants:
+      patch.participants !== undefined
+        ? String(patch.participants)
+        : current.participants,
+    goal: patch.goal !== undefined ? String(patch.goal) : current.goal,
+    topics: (patch.topics ?? current.topics).map((t) => ({
+      title: String(t.title || ""),
+      bullets: Array.isArray(t.bullets) ? t.bullets.map(String) : [],
+      ...(t.sub ? { sub: String(t.sub) } : {}),
+    })),
+    disputes: (patch.disputes ?? current.disputes).map(String),
+    actionItems: (patch.actionItems ?? current.actionItems).map((a) => ({
+      owner: String(a.owner || ""),
+      action: String(a.action || ""),
+    })),
+    timeline: timeline.map(String).filter(Boolean),
+  };
+
+  const doc: MinutesDoc = {
+    ...base,
+    markdown: renderMarkdown(base),
+    source: current.source || "mock",
+    model: current.model || "user-edit",
+    generatedAt: new Date().toISOString(),
+  };
+
+  const now = new Date();
+  await db
+    .update(meetings)
+    .set({
+      minutesJson: JSON.stringify(doc),
+      minutesMarkdown: doc.markdown,
+      minutesStatus: "ready",
+      summary: doc.goal || doc.topic || m.summary,
       updatedAt: now,
     })
     .where(eq(meetings.id, meetingId));

@@ -5,6 +5,8 @@ export const users = sqliteTable("users", {
   username: text("username").notNull().unique(),
   email: text("email").notNull().unique(),
   passwordHash: text("password_hash").notNull(),
+  /** Optional profile display name (prototype 「显示名称」) */
+  displayName: text("display_name").notNull().default(""),
   /** User-level LLM overrides; empty string means fall back to env */
   llmBaseUrl: text("llm_base_url").notNull().default(""),
   llmModel: text("llm_model").notNull().default(""),
