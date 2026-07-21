@@ -150,15 +150,91 @@ export async function migrate(): Promise<void> {
     CREATE INDEX IF NOT EXISTS share_links_token_hash_idx ON share_links(token_hash);
   `);
 
-  await addColumnIfMissing(client, "share_links", "public_token", "TEXT NOT NULL DEFAULT ''");
-  // Permanent links: clear legacy short TTLs (treat as never expire)
-  try {
-    await client.execute("UPDATE share_links SET expires_at = NULL WHERE revoked_at IS NULL");
-  } catch {
-    // ignore
-  }
+  await ensureShareLinksSchema(client);
 
   await backfillQaSessions(client);
+}
+
+/**
+ * Old share_links had expires_at NOT NULL (7-day TTL). Product now wants permanent
+ * links (NULL = never). SQLite cannot drop NOT NULL in place — rebuild if needed.
+ */
+async function ensureShareLinksSchema(client: {
+  execute: (q: string) => Promise<unknown>;
+  executeMultiple?: (q: string) => Promise<unknown>;
+}) {
+  await addColumnIfMissing(client, "share_links", "public_token", "TEXT NOT NULL DEFAULT ''");
+
+  let needsRebuild = false;
+  try {
+    const info = (await client.execute("PRAGMA table_info(share_links)")) as {
+      rows?: Array<Record<string, unknown>>;
+    };
+    const rows = info.rows || [];
+    const expires = rows.find((r) => String(r.name) === "expires_at");
+    if (expires && Number(expires.notnull) === 1) {
+      needsRebuild = true;
+    }
+    if (!rows.some((r) => String(r.name) === "public_token")) {
+      needsRebuild = true;
+    }
+  } catch {
+    return;
+  }
+
+  if (!needsRebuild) {
+    // Safe on nullable expires_at
+    try {
+      await client.execute(
+        "UPDATE share_links SET expires_at = NULL WHERE revoked_at IS NULL",
+      );
+    } catch {
+      // ignore
+    }
+    return;
+  }
+
+  const run = async (sql: string) => {
+    if (client.executeMultiple) await client.executeMultiple(sql);
+    else await client.execute(sql);
+  };
+
+  try {
+    await run(`
+      CREATE TABLE share_links_new (
+        id TEXT PRIMARY KEY NOT NULL,
+        meeting_id TEXT NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        token_hash TEXT NOT NULL UNIQUE,
+        public_token TEXT NOT NULL DEFAULT '',
+        scope TEXT NOT NULL DEFAULT 'minutes_visual',
+        expires_at INTEGER,
+        revoked_at INTEGER,
+        created_at INTEGER NOT NULL
+      );
+      INSERT INTO share_links_new (
+        id, meeting_id, user_id, token_hash, public_token, scope, expires_at, revoked_at, created_at
+      )
+      SELECT
+        id,
+        meeting_id,
+        user_id,
+        token_hash,
+        COALESCE(public_token, '') AS public_token,
+        COALESCE(scope, 'minutes_visual') AS scope,
+        CASE WHEN revoked_at IS NULL THEN NULL ELSE expires_at END AS expires_at,
+        revoked_at,
+        created_at
+      FROM share_links;
+      DROP TABLE share_links;
+      ALTER TABLE share_links_new RENAME TO share_links;
+      CREATE INDEX IF NOT EXISTS share_links_meeting_id_idx ON share_links(meeting_id);
+      CREATE INDEX IF NOT EXISTS share_links_token_hash_idx ON share_links(token_hash);
+    `);
+    console.log("[migrate] share_links rebuilt (expires_at nullable, public_token present)");
+  } catch (err) {
+    console.error("[migrate] share_links rebuild failed", err);
+  }
 }
 
 async function addColumnIfMissing(

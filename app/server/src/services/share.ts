@@ -59,14 +59,9 @@ export async function createShareLink(
     .limit(1);
 
   const active = existing[0];
+
+  // Reuse permanent link when we still have the raw URL token
   if (active?.publicToken) {
-    // Ensure permanent
-    if (active.expiresAt != null) {
-      await db
-        .update(shareLinks)
-        .set({ expiresAt: null })
-        .where(eq(shareLinks.id, active.id));
-    }
     return {
       token: active.publicToken,
       expiresAt: null,
@@ -75,11 +70,12 @@ export async function createShareLink(
     };
   }
 
-  // Legacy row without publicToken: revoke and mint permanent
+  // Legacy active row without publicToken: revoke only (do not touch expires_at —
+  // old DBs may still have NOT NULL on that column until migrate rebuild runs).
   if (active) {
     await db
       .update(shareLinks)
-      .set({ revokedAt: new Date(), expiresAt: null })
+      .set({ revokedAt: new Date() })
       .where(eq(shareLinks.id, active.id));
   }
 
@@ -87,17 +83,39 @@ export async function createShareLink(
   const tokenHash = hashToken(token);
   const id = newId("shr");
 
-  await db.insert(shareLinks).values({
-    id,
-    meetingId,
-    userId,
-    tokenHash,
-    publicToken: token,
-    scope: "minutes_visual",
-    expiresAt: null,
-    revokedAt: null,
-    createdAt: new Date(),
-  });
+  try {
+    await db.insert(shareLinks).values({
+      id,
+      meetingId,
+      userId,
+      tokenHash,
+      publicToken: token,
+      scope: "minutes_visual",
+      expiresAt: null,
+      revokedAt: null,
+      createdAt: new Date(),
+    });
+  } catch (err) {
+    // Fallback for DBs that still enforce expires_at NOT NULL before rebuild:
+    // far-future timestamp ≈ permanent for product purposes.
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/expires_at|NOT NULL|SQLITE_CONSTRAINT/i.test(msg)) {
+      const far = new Date("9999-12-31T00:00:00.000Z");
+      await db.insert(shareLinks).values({
+        id,
+        meetingId,
+        userId,
+        tokenHash,
+        publicToken: token,
+        scope: "minutes_visual",
+        expiresAt: far,
+        revokedAt: null,
+        createdAt: new Date(),
+      });
+    } else {
+      throw err;
+    }
+  }
 
   return {
     token,
@@ -153,13 +171,14 @@ export async function getPublicShare(token: string): Promise<PublicSharePayload>
   if (!link) throw notFound("分享不存在或已失效");
   if (link.revokedAt) throw notFound("分享已撤销");
 
-  // Permanent unless explicit future expiry is set
+  // Permanent unless a real finite expiry is set (ignore sentinel year 9999)
   if (link.expiresAt != null) {
     const exp =
       link.expiresAt instanceof Date
         ? link.expiresAt.getTime()
         : Number(link.expiresAt);
-    if (Number.isFinite(exp) && exp > 0 && exp < Date.now()) {
+    const year9999 = Date.UTC(9999, 0, 1);
+    if (Number.isFinite(exp) && exp > 0 && exp < year9999 && exp < Date.now()) {
       throw notFound("分享已过期");
     }
   }
