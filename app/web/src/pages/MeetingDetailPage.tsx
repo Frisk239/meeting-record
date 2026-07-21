@@ -466,8 +466,9 @@ export function MeetingDetailPage() {
         onPause={() => setPlaying(false)}
       />
 
-      <header className="page-header detail-header">
-        <div className="detail-header-main">
+      <header className="detail-header">
+        {/* Row 1: back + actions stay on top; title never shares width with toolbar */}
+        <div className="detail-header-top">
           <Link to="/" className="btn-back" aria-label="返回笔记列表">
             <span className="btn-back-icon" aria-hidden>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -476,40 +477,42 @@ export function MeetingDetailPage() {
             </span>
             <span>笔记</span>
           </Link>
-          <h1 className="page-title">{meeting.title}</h1>
+          <div className="row gap wrap detail-toolbar">
+            <a className="btn btn-ghost btn-sm" href={exportMdUrl(meeting.id)}>
+              导出 MD
+            </a>
+            <a className="btn btn-ghost btn-sm" href={exportMdUrl(meeting.id, true)}>
+              MD+原文
+            </a>
+            <a className="btn btn-primary btn-sm" href={exportPdfUrl(meeting.id)}>
+              导出 PDF
+            </a>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              disabled={busy || shareBusy || meeting.minutesStatus === "none"}
+              onClick={() => void onCreateShare()}
+              title="生成只读分享链接（纪要+图解，不含原文）"
+            >
+              {shareBusy ? "生成链接…" : "分享链接"}
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm danger detail-delete-desktop"
+              disabled={busy}
+              onClick={() => setConfirm("delete")}
+            >
+              删除
+            </button>
+          </div>
+        </div>
+        <div className="detail-header-main">
+          <h1 className="page-title detail-title">{meeting.title}</h1>
           <p className="muted caption detail-status-line">
             {meeting.status}
             {meeting.jobs[0] ? ` · ${meeting.jobs[0].engine}/${meeting.jobs[0].status}` : ""}
             {` · 纪要 ${meeting.minutesStatus}`}
           </p>
-        </div>
-        <div className="row gap wrap detail-toolbar">
-          <a className="btn btn-ghost btn-sm" href={exportMdUrl(meeting.id)}>
-            导出 MD
-          </a>
-          <a className="btn btn-ghost btn-sm" href={exportMdUrl(meeting.id, true)}>
-            MD+原文
-          </a>
-          <a className="btn btn-primary btn-sm" href={exportPdfUrl(meeting.id)}>
-            导出 PDF
-          </a>
-          <button
-            type="button"
-            className="btn btn-ghost btn-sm"
-            disabled={busy || shareBusy || meeting.minutesStatus === "none"}
-            onClick={() => void onCreateShare()}
-            title="生成只读分享链接（纪要+图解，不含原文）"
-          >
-            {shareBusy ? "生成链接…" : "分享链接"}
-          </button>
-          <button
-            type="button"
-            className="btn btn-ghost btn-sm danger detail-delete-desktop"
-            disabled={busy}
-            onClick={() => setConfirm("delete")}
-          >
-            删除
-          </button>
         </div>
       </header>
 

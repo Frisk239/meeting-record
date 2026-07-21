@@ -366,50 +366,77 @@ a.btn-primary:hover {
   gap: 5px;
 }
 
-/* Detail header back control (replaces plain 「← 笔记」 link) */
+/*
+ * Detail header root cause of vertical title:
+ * Title and multi-button toolbar must NOT share one flex row width.
+ * Structure: row1 = back + toolbar (right); row2 = full-width title/status.
+ */
 .detail-header {
-  align-items: flex-start;
-  gap: 12px;
-  flex-wrap: wrap;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
   min-width: 0;
+  width: 100%;
+}
+
+.detail-header-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 10px;
+  min-width: 0;
+  width: 100%;
 }
 
 .detail-header-main {
   min-width: 0;
-  flex: 1 1 220px;
+  width: 100%;
   max-width: 100%;
+  flex: none;
+}
+
+.detail-title,
+.detail-header .page-title {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  /* Prefer wrapping at word/phrase boundaries, not single-character columns */
+  overflow-wrap: break-word;
+  word-break: normal;
+  line-break: auto;
+  white-space: normal;
+  writing-mode: horizontal-tb;
+  font-size: clamp(20px, 5vw, 28px);
+  line-height: 1.35;
 }
 
 .detail-status-line {
   margin: 6px 0 0;
-  overflow-wrap: anywhere;
-  word-break: break-word;
+  overflow-wrap: break-word;
+  word-break: normal;
   line-height: 1.45;
+  max-width: 100%;
 }
 
-/* Phone: stack title above action chips so long Chinese titles don't go vertical */
 @media (max-width: 720px) {
-  .detail-header {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 12px;
-  }
-
-  .detail-header-main {
-    flex: 1 1 auto;
-    width: 100%;
+  .detail-header-top {
+    gap: 8px;
   }
 
   .detail-header .detail-toolbar {
-    width: 100%;
-    justify-content: flex-start !important;
-    flex-wrap: wrap;
-    row-gap: 8px;
+    /* Keep actions on the right of top row when space allows; wrap under back if needed */
+    justify-content: flex-end;
+    margin-left: auto;
+    max-width: 100%;
   }
 
+  .detail-title,
   .detail-header .page-title {
-    font-size: 22px;
-    line-height: 1.35;
+    font-size: 21px;
+    line-height: 1.4;
   }
 
   .detail-status-line {
@@ -421,7 +448,7 @@ a.btn-primary:hover {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  margin: 0 0 10px;
+  margin: 0;
   padding: 6px 10px 6px 8px;
   border-radius: 999px;
   border: 1px solid var(--hairline);
@@ -431,6 +458,7 @@ a.btn-primary:hover {
   font-weight: 600;
   line-height: 1;
   text-decoration: none;
+  flex-shrink: 0;
   transition:
     background 0.15s ease,
     border-color 0.15s ease,
@@ -456,10 +484,12 @@ a.btn-primary:hover {
 }
 
 .detail-toolbar {
+  display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   align-items: center;
   gap: 8px !important;
-  flex: 0 1 auto;
+  flex: 1 1 auto;
   min-width: 0;
   max-width: 100%;
 }
