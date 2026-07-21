@@ -32,6 +32,10 @@ _Avoid_: 仅手动生成当作唯一路径（除非用户关闭自动）；转�
 结构化会议纪要，首版对标智在式 AI 总结（见 vision）：**纪要头**（主题/时间/地点/参与主体/核心目标）+ 关键议题、争议点、待办、时间轴等；图解为增强。可编辑。
 _Avoid_: Notes alone；把「探索/外脑自动灌屏」算进每次默认 Minutes
 
+**Minutes Visual Board**（图解总览）:
+纪要 Tab **阅读态顶部**的可选信息图层；由 **Visual Engine** 产出闭合 JSON IR（非 HTML）。场景无关：**Intent（会议形态）+ Recipe（配方）+ Primitives（stage_row / compare_cards / card_grid / action_board / callout）**。列表型 Minutes 仍是真源；无 board 则不展示。设计见 [`docs/design/minutes-visual-engine.md`](./docs/design/minutes-visual-engine.md)。
+_Avoid_: 按行业写死模板；LLM 直出整页 HTML 当默认图解；与外脑自动灌屏绑定
+
 **Meeting Q&A**（产品名可再定，对标智在「追问/问小智」）:
 基于**本场已记录内容**（Transcript / Minutes）由用户**主动提问**、模型作答。信息架构上为 **纪要的子页**：从纪要页**右下角入口**进入，而非与纪要平级的第三主 Tab 强制并列。
 _Avoid_: 每次转写后自动灌屏；跨全库闲聊且不绑定本场会议（除非明确做全局搜索）
@@ -155,9 +159,10 @@ _Avoid_: 首版 Postgres/多节点对象存储；无数据库的纯散落文件�
 - **已交付：** S0b–S5 · FunASR 多格式 · 进度/日志 · 删除/终止 · **UTF-8 转写管线** · **重新转写**  
 - **应用：** `app/web` + `app/server` + `workers/asr`  
 - **已知：** 乱码会议须点「重新转写」或重传（U+FFFD 不可逆）  
-- **下一阶段（未开刀）：** 智在更深纪要细节 · **图表总结 / 思维导图**  
+- **下一阶段（未开刀）：** **Minutes Visual Engine（图解总结）** · 换角度总结 · 思维导图（更后）  
+- **图解引擎设计：** [`docs/design/minutes-visual-engine.md`](docs/design/minutes-visual-engine.md)（Intent/Recipe/Primitives IR；待切片实现）  
 - **残余 polish：** Playwright 完整上传 E2E、多说话人长会 soak、4G RSS  
-- **已修 PDF CJK：** docs/progress/pdf-cjk-fontkit-fix.md（注册 fontkit + 系统 TTF）  
+- **已修 PDF CJK / 排版：** docs/progress/pdf-cjk-fontkit-fix.md · docs/progress/pdf-layout-polish.md  
 
 
 ## 相关入口
