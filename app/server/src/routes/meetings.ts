@@ -21,6 +21,7 @@ import {
   saveMinutesDoc,
   saveMinutesMarkdown,
 } from "../services/minutes.js";
+import { createShareLink, revokeShareLinks } from "../services/share.js";
 import { generateVisualBoardForMeeting } from "../services/visualBoard.js";
 import { askQuestion, createSession, getQaState } from "../services/qa.js";
 import { ensureMediaDirs } from "../services/storage.js";
@@ -326,4 +327,33 @@ meetingRoutes.get("/:id/export.pdf", async (c) => {
       "content-disposition": `attachment; filename*=UTF-8''${encodeURIComponent(file.filename)}`,
     },
   });
+});
+
+/** Create a read-only share link (minutes + visual; no transcript). */
+meetingRoutes.post("/:id/share", async (c) => {
+  const user = c.get("user");
+  const result = await createShareLink(user.id, c.req.param("id"));
+  const origin =
+    c.req.header("origin") ||
+    c.req.header("x-forwarded-host") ||
+    "";
+  // Frontend builds the public URL; we return path + token.
+  return c.json(
+    {
+      share: {
+        token: result.token,
+        path: `/s/${result.token}`,
+        expiresAt: result.expiresAt,
+        scope: result.scope,
+        originHint: origin || null,
+      },
+    },
+    201,
+  );
+});
+
+meetingRoutes.delete("/:id/share", async (c) => {
+  const user = c.get("user");
+  const result = await revokeShareLinks(user.id, c.req.param("id"));
+  return c.json(result);
 });

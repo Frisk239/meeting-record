@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   cancelMeetingJobs,
+  createMeetingShare,
   deleteMeeting,
   exportMdUrl,
   exportPdfUrl,
@@ -21,7 +22,10 @@ import {
 import { AudioDropZone } from "../components/AudioDropZone";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { MarkdownView } from "../components/MarkdownView";
-import { MinutesVisualSlot } from "../components/MinutesVisualBoard";
+import {
+  downloadVisualBoardPng,
+  MinutesVisualSlot,
+} from "../components/MinutesVisualBoard";
 
 type Tab = "minutes" | "transcript" | "insights";
 type RecFilter = "time" | "speaker" | string;
@@ -130,8 +134,11 @@ export function MeetingDetailPage() {
   const [editingMinutes, setEditingMinutes] = useState(false);
   const [visualBusy, setVisualBusy] = useState(false);
   const [visualError, setVisualError] = useState<string | null>(null);
+  const [downloadBusy, setDownloadBusy] = useState(false);
+  const [shareBusy, setShareBusy] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const visualArtboardRef = useRef<HTMLDivElement | null>(null);
 
   const refresh = useCallback(async () => {
     if (!id) return;
@@ -260,6 +267,50 @@ export function MeetingDetailPage() {
       setMsg("图解已生成");
     } finally {
       setVisualBusy(false);
+    }
+  }
+
+  async function onDownloadVisual() {
+    const node = visualArtboardRef.current;
+    if (!node) {
+      setVisualError("没有可下载的图解画板");
+      return;
+    }
+    setDownloadBusy(true);
+    setVisualError(null);
+    try {
+      const name = (meeting?.title || draft?.topic || "visual").slice(0, 40);
+      await downloadVisualBoardPng(node, `图解-${name}`);
+      setMsg("图解 PNG 已下载");
+    } catch (err) {
+      setVisualError(
+        err instanceof Error ? `下载失败：${err.message}` : "下载失败",
+      );
+    } finally {
+      setDownloadBusy(false);
+    }
+  }
+
+  async function onCreateShare() {
+    if (!id) return;
+    setShareBusy(true);
+    setMsg(null);
+    try {
+      const res = await createMeetingShare(id);
+      if (!res.ok) {
+        setMsg(res.data.message || "生成分享链接失败");
+        return;
+      }
+      const path = res.data.share.path || `/s/${res.data.share.token}`;
+      const url = `${window.location.origin}${path}`;
+      try {
+        await navigator.clipboard.writeText(url);
+        setMsg(`分享链接已复制（${new Date(res.data.share.expiresAt).toLocaleString()} 前有效）`);
+      } catch {
+        setMsg(`分享链接：${url}`);
+      }
+    } finally {
+      setShareBusy(false);
     }
   }
 
@@ -437,6 +488,15 @@ export function MeetingDetailPage() {
           <a className="btn btn-primary btn-sm" href={exportPdfUrl(meeting.id)}>
             导出 PDF
           </a>
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            disabled={busy || shareBusy || meeting.minutesStatus === "none"}
+            onClick={() => void onCreateShare()}
+            title="生成只读分享链接（纪要+图解，不含原文）"
+          >
+            {shareBusy ? "生成链接…" : "分享链接"}
+          </button>
           <button
             type="button"
             className="btn btn-ghost btn-sm danger detail-delete-desktop"
@@ -623,6 +683,9 @@ export function MeetingDetailPage() {
                   meeting.minutesStatus !== "none" ||
                   Boolean(draft.topic || draft.markdown || meeting.minutesMarkdown)
                 }
+                artboardRef={visualArtboardRef}
+                onDownload={() => void onDownloadVisual()}
+                downloadBusy={downloadBusy}
               />
             </>
           )}

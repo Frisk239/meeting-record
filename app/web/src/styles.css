@@ -2362,16 +2362,68 @@ button {
   color: var(--ink);
 }
 
+/* Artboard host: scale whole poster; never reflow columns on narrow screens */
+.vb-scale-host {
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+  position: relative;
+}
+
+.vb-scale-inner {
+  /* transform scale applied inline; keep layout width fixed */
+  will-change: transform;
+}
+
+.vb-artboard {
+  box-sizing: border-box;
+  width: 720px;
+  max-width: none !important;
+  min-width: 720px;
+  padding: 18px 18px 20px;
+  border-radius: 14px;
+  background: #faf9f5;
+  border: 1px solid var(--hairline-soft);
+  /* Critical: children must not collapse to phone single-column */
+  container-type: normal;
+}
+
+.vb-svg-icon {
+  display: block;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.vb-card-icon-wrap {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--ink) 5%, var(--canvas));
+  color: var(--body-strong);
+  flex-shrink: 0;
+}
+
 .vb-stage-row {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
 }
 
+/* Fixed column counts on artboard — do NOT collapse on viewport media queries */
+.vb-artboard .vb-stage-row.cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.vb-artboard .vb-stage-row.cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.vb-artboard .vb-stage-row.cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.vb-artboard .vb-compare.cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.vb-artboard .vb-compare.cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.vb-artboard .vb-grid.cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.vb-artboard .vb-grid.cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.vb-artboard .vb-grid.cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+/* Skeleton may still simplify on tiny UI chrome — artboard never uses these */
 @media (max-width: 720px) {
-  .vb-stage-row {
-    grid-template-columns: 1fr;
-  }
   .vb-skel-row {
     grid-template-columns: 1fr;
   }
@@ -2400,6 +2452,12 @@ button {
   border: 2px solid var(--accent-teal);
   flex-shrink: 0;
   z-index: 1;
+  color: var(--body-strong);
+}
+
+.vb-stage-dot .vb-svg-icon {
+  width: 15px;
+  height: 15px;
 }
 
 .vb-stage-item.tone-amber .vb-stage-dot { border-color: var(--accent-amber); }
@@ -2455,32 +2513,155 @@ button {
   gap: 12px;
 }
 
-@media (max-width: 640px) {
-  .vb-compare {
-    grid-template-columns: 1fr;
-  }
-}
-
 .vb-grid {
   display: grid;
   gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+/* Defaults when not inside artboard (should not reflow by viewport) */
 .vb-grid.cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .vb-grid.cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .vb-grid.cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 
-@media (max-width: 900px) {
-  .vb-grid.cols-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .vb-grid.cols-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.vb-actions li {
+  /* keep 3-col action row on artboard even if global rules differ */
 }
 
-@media (max-width: 560px) {
-  .vb-grid.cols-2,
-  .vb-grid.cols-3,
-  .vb-grid.cols-4 {
-    grid-template-columns: 1fr;
-  }
+.share-page {
+  max-width: 840px;
+  margin: 0 auto;
+  padding: 20px 16px 48px;
+}
+
+.share-top {
+  margin-bottom: 16px;
+}
+
+.share-brand {
+  margin: 0;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.share-body {
+  gap: 16px;
+}
+
+.share-foot {
+  margin-top: 24px;
+}
+
+.vb-slot-readonly {
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+
+/* Click-to-expand hit target around scaled artboard */
+.vb-open-hit {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: zoom-in;
+  position: relative;
+  border-radius: 14px;
+}
+
+.vb-open-hit:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--primary) 55%, transparent);
+  outline-offset: 2px;
+}
+
+.vb-open-hint {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  z-index: 2;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--body-strong);
+  background: color-mix(in srgb, var(--canvas) 88%, transparent);
+  border: 1px solid var(--hairline);
+  pointer-events: none;
+  opacity: 0.92;
+}
+
+/* Lightbox / enlarge */
+.vb-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 12px;
+  background: rgba(20, 20, 19, 0.55);
+  backdrop-filter: blur(4px);
+}
+
+.vb-lightbox-panel {
+  width: min(960px, 100%);
+  max-height: min(94dvh, 960px);
+  display: flex;
+  flex-direction: column;
+  border-radius: 16px;
+  background: var(--canvas);
+  border: 1px solid var(--hairline);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.28);
+  overflow: hidden;
+}
+
+.vb-lightbox-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--hairline-soft);
+  flex-shrink: 0;
+}
+
+.vb-lightbox-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.vb-lightbox-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.vb-lightbox-stage {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 16px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  background: color-mix(in srgb, var(--surface-soft) 55%, var(--canvas));
+}
+
+.vb-lightbox-scale {
+  /* width set inline from scale * 720; contains transformed artboard */
+  overflow: visible;
+}
+
+.vb-lightbox-hint {
+  margin: 0;
+  padding: 8px 12px 10px;
+  text-align: center;
+  border-top: 1px solid var(--hairline-soft);
+  flex-shrink: 0;
 }
 
 .vb-card {

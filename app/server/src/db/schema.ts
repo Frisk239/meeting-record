@@ -140,6 +140,24 @@ export const qaMessages = sqliteTable("qa_messages", {
   createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
 });
 
+/** Public read-only share links (token hashed at rest). */
+export const shareLinks = sqliteTable("share_links", {
+  id: text("id").primaryKey(),
+  meetingId: text("meeting_id")
+    .notNull()
+    .references(() => meetings.id, { onDelete: "cascade" }),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  /** sha256 hex of raw token shown in URL */
+  tokenHash: text("token_hash").notNull().unique(),
+  /** minutes | minutes_visual — product default minutes+visual, no transcript */
+  scope: text("scope").notNull().default("minutes_visual"),
+  expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
+  revokedAt: integer("revoked_at", { mode: "timestamp_ms" }),
+  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+});
+
 export type User = typeof users.$inferSelect;
 export type Session = typeof sessions.$inferSelect;
 export type Meeting = typeof meetings.$inferSelect;
@@ -148,3 +166,4 @@ export type TranscriptionJob = typeof transcriptionJobs.$inferSelect;
 export type TranscriptSegment = typeof transcriptSegments.$inferSelect;
 export type QaSession = typeof qaSessions.$inferSelect;
 export type QaMessage = typeof qaMessages.$inferSelect;
+export type ShareLink = typeof shareLinks.$inferSelect;

@@ -6,6 +6,7 @@ import { HttpError } from "./lib/errors.js";
 import type { AuthVariables } from "./middleware/auth.js";
 import { authRoutes } from "./routes/auth.js";
 import { meetingRoutes } from "./routes/meetings.js";
+import { sharePublicRoutes } from "./routes/share.js";
 import { ensureMediaDirs } from "./services/storage.js";
 
 export function createApp() {
@@ -41,6 +42,7 @@ export function createApp() {
 
   app.route("/api/auth", authRoutes);
   app.route("/api/meetings", meetingRoutes);
+  app.route("/api/share", sharePublicRoutes);
 
   app.notFound((c) => c.json({ error: "not_found", message: "未找到" }, 404));
 

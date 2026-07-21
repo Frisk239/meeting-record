@@ -134,6 +134,19 @@ export async function migrate(): Promise<void> {
     );
     CREATE INDEX IF NOT EXISTS qa_sessions_meeting_id_idx ON qa_sessions(meeting_id);
     CREATE INDEX IF NOT EXISTS qa_messages_session_id_idx ON qa_messages(session_id);
+
+    CREATE TABLE IF NOT EXISTS share_links (
+      id TEXT PRIMARY KEY NOT NULL,
+      meeting_id TEXT NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      token_hash TEXT NOT NULL UNIQUE,
+      scope TEXT NOT NULL DEFAULT 'minutes_visual',
+      expires_at INTEGER NOT NULL,
+      revoked_at INTEGER,
+      created_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS share_links_meeting_id_idx ON share_links(meeting_id);
+    CREATE INDEX IF NOT EXISTS share_links_token_hash_idx ON share_links(token_hash);
   `);
 
   await backfillQaSessions(client);

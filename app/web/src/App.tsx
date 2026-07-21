@@ -7,6 +7,7 @@ import { MeetingQaPage } from "./pages/MeetingQaPage";
 import { MeetingsPage } from "./pages/MeetingsPage";
 import { RecordPage } from "./pages/RecordPage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { SharePage } from "./pages/SharePage";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { loading, user } = useAuth();
@@ -45,6 +46,8 @@ export function App() {
           </GuestOnly>
         }
       />
+      {/* Public read-only share — no auth shell */}
+      <Route path="/s/:token" element={<SharePage />} />
       <Route
         path="/"
         element={

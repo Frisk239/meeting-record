@@ -358,6 +358,38 @@ export function generateInsights(meetingId: string) {
   );
 }
 
+export function createMeetingShare(meetingId: string) {
+  return api<{
+    share: {
+      token: string;
+      path: string;
+      expiresAt: string;
+      scope: string;
+      originHint: string | null;
+    };
+  }>(`/api/meetings/${meetingId}/share`, { method: "POST" });
+}
+
+export function revokeMeetingShare(meetingId: string) {
+  return api<{ revoked: number }>(`/api/meetings/${meetingId}/share`, {
+    method: "DELETE",
+  });
+}
+
+export type PublicShare = {
+  title: string;
+  appName: string;
+  scope: string;
+  expiresAt: string;
+  minutes: MinutesDoc | null;
+};
+
+export function getPublicShare(token: string) {
+  return api<{ share: PublicShare }>(`/api/share/${encodeURIComponent(token)}`, {
+    // public endpoint — still use same fetch helper (cookies optional)
+  });
+}
+
 export function deleteMeeting(meetingId: string) {
   return api<{ ok: boolean }>(`/api/meetings/${meetingId}`, { method: "DELETE" });
 }
