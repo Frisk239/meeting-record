@@ -121,6 +121,22 @@ export async function migrate(): Promise<void> {
   await addColumnIfMissing(client, "transcription_jobs", "progress_stage", "TEXT NOT NULL DEFAULT ''");
   await addColumnIfMissing(client, "transcription_jobs", "progress_message", "TEXT NOT NULL DEFAULT ''");
   await addColumnIfMissing(client, "transcription_jobs", "progress_log", "TEXT NOT NULL DEFAULT '[]'");
+  await addColumnIfMissing(client, "qa_messages", "session_id", "TEXT NOT NULL DEFAULT ''");
+
+  await client.executeMultiple(`
+    CREATE TABLE IF NOT EXISTS qa_sessions (
+      id TEXT PRIMARY KEY NOT NULL,
+      meeting_id TEXT NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      title TEXT NOT NULL DEFAULT '新会话',
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS qa_sessions_meeting_id_idx ON qa_sessions(meeting_id);
+    CREATE INDEX IF NOT EXISTS qa_messages_session_id_idx ON qa_messages(session_id);
+  `);
+
+  await backfillQaSessions(client);
 }
 
 async function addColumnIfMissing(
@@ -133,6 +149,37 @@ async function addColumnIfMissing(
     await client.execute(`ALTER TABLE ${table} ADD COLUMN ${column} ${def}`);
   } catch {
     // already exists
+  }
+}
+
+
+async function backfillQaSessions(client: {
+  execute: (q: string) => Promise<unknown>;
+}) {
+  try {
+    const result = (await client.execute(
+      "SELECT DISTINCT meeting_id, user_id FROM qa_messages WHERE session_id IS NULL OR session_id = ''",
+    )) as { rows?: Array<Record<string, unknown>> };
+    const rows = result.rows || [];
+    for (const r of rows) {
+      const meetingId = String(r.meeting_id ?? "");
+      const userId = String(r.user_id ?? "");
+      if (!meetingId || !userId) continue;
+      const sid = `qas_${meetingId.slice(4, 12)}_legacy`;
+      const now = Date.now();
+      try {
+        await client.execute(
+          `INSERT OR IGNORE INTO qa_sessions (id, meeting_id, user_id, title, created_at, updated_at) VALUES ('${sid}', '${meetingId}', '${userId}', '历史会话', ${now}, ${now})`,
+        );
+      } catch {
+        // ignore
+      }
+      await client.execute(
+        `UPDATE qa_messages SET session_id = '${sid}' WHERE meeting_id = '${meetingId}' AND user_id = '${userId}' AND (session_id IS NULL OR session_id = '')`,
+      );
+    }
+  } catch {
+    // ignore
   }
 }
 

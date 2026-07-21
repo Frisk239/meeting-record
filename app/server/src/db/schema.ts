@@ -111,6 +111,21 @@ export const transcriptSegments = sqliteTable("transcript_segments", {
 });
 
 /** Meeting Q&A turns — sub-page of Minutes, not auto-generated. */
+/** Q&A conversation threads (multiple per meeting). */
+export const qaSessions = sqliteTable("qa_sessions", {
+  id: text("id").primaryKey(),
+  meetingId: text("meeting_id")
+    .notNull()
+    .references(() => meetings.id, { onDelete: "cascade" }),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  title: text("title").notNull().default("新会话"),
+  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+});
+
+/** Meeting Q&A turns — sub-page of Minutes, not auto-generated. */
 export const qaMessages = sqliteTable("qa_messages", {
   id: text("id").primaryKey(),
   meetingId: text("meeting_id")
@@ -119,6 +134,7 @@ export const qaMessages = sqliteTable("qa_messages", {
   userId: text("user_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
+  sessionId: text("session_id").notNull().default(""),
   role: text("role").notNull(), // user | assistant
   content: text("content").notNull(),
   createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
@@ -130,4 +146,5 @@ export type Meeting = typeof meetings.$inferSelect;
 export type Recording = typeof recordings.$inferSelect;
 export type TranscriptionJob = typeof transcriptionJobs.$inferSelect;
 export type TranscriptSegment = typeof transcriptSegments.$inferSelect;
+export type QaSession = typeof qaSessions.$inferSelect;
 export type QaMessage = typeof qaMessages.$inferSelect;

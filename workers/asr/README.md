@@ -59,6 +59,7 @@ python worker.py --serve
 | `FUNASR_MODEL` | `iic/SenseVoiceSmall` |
 | `FUNASR_VAD` | `fsmn-vad` |
 | `FUNASR_SPK` | `cam++`（空字符串 = 不加载说话人） |
+| `FUNASR_SPK_MODE` | 空=自动（SenseVoice→`vad_segment`；其它有 punc→`punc_segment`） |
 | `FUNASR_DEVICE` | `cpu` |
 | `FUNASR_HUB` | `ms` |
 | `ASR_NCPU` | `4` |

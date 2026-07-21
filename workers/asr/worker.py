@@ -104,8 +104,18 @@ def load_model(
     }
     if spk_model:
         kwargs["spk_model"] = spk_model
-        # Prefer punc_segment when punc present (better sentence boundaries for diarization)
-        if punc_model:
+        # SenseVoice has no reliable char-level timestamps. FunASR may still set
+        # output_timestamp and stay on punc_segment, which mis-aligns text vs
+        # punc/timestamps and emits pure punctuation sentences for most of a
+        # long meeting (Speaker 1/2 become "，" "。" "？"). Use vad_segment.
+        model_l = (model_id or "").lower()
+        spk_mode_env = (os.environ.get("FUNASR_SPK_MODE") or "").strip()
+        if spk_mode_env in ("vad_segment", "punc_segment", "default"):
+            kwargs["spk_mode"] = spk_mode_env
+        elif "sensevoice" in model_l:
+            kwargs["spk_mode"] = "vad_segment"
+            log("[asr-worker] SenseVoice → spk_mode=vad_segment (avoid punc-only ghosts)")
+        elif punc_model:
             kwargs["spk_mode"] = "punc_segment"
     if punc_model:
         kwargs["punc_model"] = punc_model
@@ -138,6 +148,43 @@ def _clean_text(text: str) -> str:
     # SenseVoice language/emotion/event tags: <|zh|><|NEUTRAL|>...
     t = re.sub(r"<\|[^|>]+?\|>", "", text or "")
     return t.strip()
+
+
+_PURE_PUNC_RE = None
+
+
+def _is_pure_punc(text: str) -> bool:
+    """True for empty / punctuation-only strings (ghost diarization segments)."""
+    global _PURE_PUNC_RE
+    import re
+
+    t = (text or "").strip()
+    if not t:
+        return True
+    if _PURE_PUNC_RE is None:
+        # ，。？、；：… and common ASCII/CJK punctuation
+        _PURE_PUNC_RE = re.compile(
+            r"^[\s,.:;!?\-\u2014\u2026\u00B7"
+            r"\uFF0C\u3002\uFF1F\u3001\uFF1B\uFF1A"
+            r"\u201C\u201D\u2018\u2019\uFF08\uFF09"
+            r"()\[\]\u3010\u3011\u300A\u300B<>\"']+$"
+        )
+    return bool(_PURE_PUNC_RE.fullmatch(t))
+
+
+def _finalize_segments(segments: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Drop punctuation-only ghost segments.
+
+    Real sentences already include their trailing ，。？ from timestamp_sentence.
+    Pure-punc rows are alignment artifacts and must not create Speaker N chips.
+    """
+    cleaned: list[dict[str, Any]] = []
+    for s in segments:
+        text = str(s.get("text") or "").strip()
+        if not text or _is_pure_punc(text):
+            continue
+        cleaned.append({**s, "text": text})
+    return cleaned
 
 
 def parse_funasr_result(raw: Any) -> list[dict[str, Any]]:
@@ -220,7 +267,7 @@ def parse_funasr_result(raw: Any) -> list[dict[str, Any]]:
             }
         )
 
-    return [s for s in segments if s.get("text")]
+    return _finalize_segments([s for s in segments if s.get("text")])
 
 
 def transcribe_file(

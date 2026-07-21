@@ -19,6 +19,7 @@ import {
 } from "../api";
 import { AudioDropZone } from "../components/AudioDropZone";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { MarkdownView } from "../components/MarkdownView";
 
 type Tab = "minutes" | "transcript" | "insights";
 type RecFilter = "time" | "speaker" | string;
@@ -38,6 +39,25 @@ function emptyMinutes(title: string): MinutesDoc {
     timeline: [],
     markdown: "",
   };
+}
+
+/** Parse timeline lines like "00:01:27 【就业形势】正文…" for document view. */
+function parseTimelineItem(raw: string): {
+  time?: string;
+  title?: string;
+  body: string;
+} {
+  const s = (raw || "").trim();
+  if (!s) return { body: "" };
+  const m = s.match(
+    /^(\d{1,2}:\d{2}(?::\d{2})?)\s*(?:[【\[]([^】\]]+)[】\]])?\s*(.*)$/s,
+  );
+  if (!m) return { body: s };
+  const time = m[1];
+  const title = (m[2] || "").trim() || undefined;
+  const body = (m[3] || "").trim();
+  if (!body && !title) return { time, body: s };
+  return { time, title, body: body || s };
 }
 
 function stageLabel(stage: string): string {
@@ -100,7 +120,11 @@ export function MeetingDetailPage() {
   const [playing, setPlaying] = useState(false);
   const [speedIdx, setSpeedIdx] = useState(0);
   const [currentMs, setCurrentMs] = useState(0);
+  /** Real media duration from <audio> metadata — never invent from file size. */
+  const [audioDurationMs, setAudioDurationMs] = useState(0);
   const [confirm, setConfirm] = useState<null | "cancel" | "delete">(null);
+  /** Minutes tab: document reading by default; form edit only when toggled. */
+  const [editingMinutes, setEditingMinutes] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -114,11 +138,12 @@ export function MeetingDetailPage() {
     setError(null);
     setMeeting(res.data.meeting);
     setDraft((prev) => {
-      if (prev && busy) return prev;
+      // Keep in-progress edits while saving/regenerating or while in edit mode.
+      if (prev && (busy || editingMinutes)) return prev;
       const m = res.data.meeting.minutes;
       return m ? { ...m } : emptyMinutes(res.data.meeting.title);
     });
-  }, [id, busy]);
+  }, [id, busy, editingMinutes]);
 
   useEffect(() => {
     void refresh();
@@ -160,6 +185,13 @@ export function MeetingDetailPage() {
     if (!el) return;
     el.playbackRate = SPEEDS[speedIdx] ?? 1;
   }, [speedIdx]);
+
+  // Drop stale browser duration when switching meetings / primary recording.
+  useEffect(() => {
+    setAudioDurationMs(0);
+    setCurrentMs(0);
+    setPlaying(false);
+  }, [meeting?.id, meeting?.primaryRecordingId]);
 
   function onTimeUpdate() {
     const el = audioRef.current;
@@ -328,7 +360,8 @@ export function MeetingDetailPage() {
   }
 
   const banner = jobBannerText(meeting);
-  const durationMs = meeting.durationMs || 0;
+  // Prefer browser-probed media length; then server value (stored/transcript end). No byte-size guess.
+  const durationMs = audioDurationMs || meeting.durationMs || 0;
   const progress =
     durationMs > 0 ? Math.min(100, (currentMs / durationMs) * 100) : 0;
   const audioSrc = meetingAudioUrl(meeting.id, meeting.primaryRecordingId);
@@ -340,6 +373,19 @@ export function MeetingDetailPage() {
         src={meeting.primaryRecordingId ? audioSrc : undefined}
         preload="metadata"
         onTimeUpdate={onTimeUpdate}
+        onLoadedMetadata={() => {
+          const el = audioRef.current;
+          if (!el || !Number.isFinite(el.duration) || el.duration <= 0) {
+            setAudioDurationMs(0);
+            return;
+          }
+          setAudioDurationMs(Math.floor(el.duration * 1000));
+        }}
+        onDurationChange={() => {
+          const el = audioRef.current;
+          if (!el || !Number.isFinite(el.duration) || el.duration <= 0) return;
+          setAudioDurationMs(Math.floor(el.duration * 1000));
+        }}
         onEnded={() => setPlaying(false)}
         onPlay={() => setPlaying(true)}
         onPause={() => setPlaying(false)}
@@ -484,33 +530,64 @@ export function MeetingDetailPage() {
       {msg ? <p className="form-ok">{msg}</p> : null}
 
       {tab === "minutes" ? (
-        <section className="card stack minutes-structured">
-          <div className="row gap wrap" style={{ justifyContent: "space-between" }}>
-            <h2 className="title-sm">纪要</h2>
-            <div className="row gap wrap">
+        <section className="card stack minutes-panel">
+          <div className="minutes-toolbar">
+            <h2 className="title-sm minutes-toolbar-title">纪要</h2>
+            <div className="row gap wrap minutes-toolbar-actions">
               <button
                 type="button"
-                className="btn btn-ghost"
+                className="btn btn-ghost btn-sm"
                 disabled={busy || meeting.transcript.length === 0}
                 onClick={() => void onRegenerate()}
               >
                 重新生成
               </button>
-              <button
-                type="button"
-                className="btn btn-primary"
-                disabled={busy || meeting.minutesStatus === "none"}
-                onClick={() => void onSaveStructured()}
-              >
-                保存修改
-              </button>
+              {editingMinutes ? (
+                <>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    disabled={busy}
+                    onClick={() => {
+                      setEditingMinutes(false);
+                      void refresh();
+                    }}
+                  >
+                    取消
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm"
+                    disabled={busy || meeting.minutesStatus === "none"}
+                    onClick={() =>
+                      void (async () => {
+                        await onSaveStructured();
+                        setEditingMinutes(false);
+                      })()
+                    }
+                  >
+                    保存修改
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  disabled={busy || meeting.minutesStatus === "none"}
+                  onClick={() => setEditingMinutes(true)}
+                >
+                  编辑
+                </button>
+              )}
             </div>
           </div>
 
           {meeting.minutesStatus === "none" && meeting.status !== "ready" ? (
-            <p className="muted">纪要尚未生成。转写成功后将自动生成（Auto Minutes）。</p>
-          ) : (
-            <>
+            <p className="muted">
+              纪要尚未生成。转写成功后将自动生成（Auto Minutes）。
+            </p>
+          ) : editingMinutes ? (
+            <div className="minutes-edit stack">
               <div className="minutes-header">
                 <div className="kv-grid">
                   <label>
@@ -534,9 +611,11 @@ export function MeetingDetailPage() {
                       onChange={(e) => setDraft({ ...draft, place: e.target.value })}
                     />
                   </label>
-                  <label>
+                  <label className="span-2">
                     <span>参与主体</span>
-                    <input
+                    <textarea
+                      className="field-wrap"
+                      rows={3}
                       value={draft.participants}
                       onChange={(e) =>
                         setDraft({ ...draft, participants: e.target.value })
@@ -545,7 +624,9 @@ export function MeetingDetailPage() {
                   </label>
                   <label className="span-2">
                     <span>核心目标</span>
-                    <input
+                    <textarea
+                      className="field-wrap"
+                      rows={3}
                       value={draft.goal}
                       onChange={(e) => setDraft({ ...draft, goal: e.target.value })}
                     />
@@ -569,11 +650,23 @@ export function MeetingDetailPage() {
                           setDraft({ ...draft, topics });
                         }}
                       />
-                      {t.sub ? <p className="muted caption">{t.sub}</p> : null}
+                      <textarea
+                        className="field-wrap"
+                        rows={2}
+                        placeholder="小标题（可选）"
+                        value={t.sub || ""}
+                        onChange={(e) => {
+                          const topics = [...draft.topics];
+                          topics[i] = { ...t, sub: e.target.value };
+                          setDraft({ ...draft, topics });
+                        }}
+                      />
                       <ul>
                         {(t.bullets || []).map((b, j) => (
                           <li key={j}>
-                            <input
+                            <textarea
+                              className="field-wrap"
+                              rows={2}
                               value={b}
                               onChange={(e) => {
                                 const topics = [...draft.topics];
@@ -599,8 +692,9 @@ export function MeetingDetailPage() {
                   draft.disputes.map((d, i) => (
                     <blockquote key={i} className="quote">
                       <textarea
+                        className="field-wrap"
                         value={d}
-                        rows={2}
+                        rows={3}
                         onChange={(e) => {
                           const disputes = [...draft.disputes];
                           disputes[i] = e.target.value;
@@ -627,8 +721,9 @@ export function MeetingDetailPage() {
                           setDraft({ ...draft, actionItems });
                         }}
                       />
-                      <input
-                        className="grow"
+                      <textarea
+                        className="grow field-wrap"
+                        rows={2}
                         value={a.action}
                         placeholder="动作"
                         onChange={(e) => {
@@ -646,7 +741,9 @@ export function MeetingDetailPage() {
                 <div className="section-title">时间轴内容回顾</div>
                 {(draft.timeline || []).map((t, i) => (
                   <div key={i} className="timeline-item">
-                    <input
+                    <textarea
+                      className="field-wrap"
+                      rows={3}
                       value={t}
                       onChange={(e) => {
                         const timeline = [...draft.timeline];
@@ -657,7 +754,146 @@ export function MeetingDetailPage() {
                   </div>
                 ))}
               </div>
-            </>
+            </div>
+          ) : (
+            <article className="minutes-doc">
+              <header className="minutes-doc-hero">
+                <h3 className="minutes-doc-title">
+                  {draft.topic ? `“${draft.topic}”会议` : meeting.title}
+                  <span className="minutes-doc-title-sub">纪要</span>
+                </h3>
+              </header>
+
+              <dl className="minutes-meta">
+                {draft.topic ? (
+                  <div className="minutes-meta-row">
+                    <dt>会议主题</dt>
+                    <dd>{draft.topic}</dd>
+                  </div>
+                ) : null}
+                {draft.time ? (
+                  <div className="minutes-meta-row">
+                    <dt>会议时间</dt>
+                    <dd>{draft.time}</dd>
+                  </div>
+                ) : null}
+                {draft.place ? (
+                  <div className="minutes-meta-row">
+                    <dt>会议地点</dt>
+                    <dd>{draft.place}</dd>
+                  </div>
+                ) : null}
+                {draft.participants ? (
+                  <div className="minutes-meta-row">
+                    <dt>参与主体</dt>
+                    <dd>{draft.participants}</dd>
+                  </div>
+                ) : null}
+                {draft.goal ? (
+                  <div className="minutes-meta-row">
+                    <dt>会议核心目标</dt>
+                    <dd>{draft.goal}</dd>
+                  </div>
+                ) : null}
+              </dl>
+
+              <section className="minutes-doc-section">
+                <h4 className="minutes-doc-h">关键议题内容</h4>
+                {(draft.topics || []).length === 0 ? (
+                  <p className="muted">暂无议题</p>
+                ) : (
+                  draft.topics.map((t, i) => (
+                    <div key={i} className="minutes-topic">
+                      <h5 className="minutes-topic-title">
+                        {i + 1}、{t.title || "未命名议题"}
+                      </h5>
+                      {t.sub ? <p className="minutes-topic-sub">{t.sub}</p> : null}
+                      {(t.bullets || []).length ? (
+                        <ul className="minutes-bullets">
+                          {t.bullets.map((b, j) =>
+                            b.trim() ? (
+                              <li key={j}>
+                                <p>{b}</p>
+                              </li>
+                            ) : null,
+                          )}
+                        </ul>
+                      ) : null}
+                    </div>
+                  ))
+                )}
+              </section>
+
+              {(draft.timeline || []).length ? (
+                <section className="minutes-doc-section">
+                  <h4 className="minutes-doc-h">时间轴内容回顾</h4>
+                  <div className="minutes-timeline">
+                    {draft.timeline.map((raw, i) => {
+                      const item = parseTimelineItem(raw);
+                      return (
+                        <div key={i} className="minutes-timeline-item">
+                          {item.time || item.title ? (
+                            <p className="minutes-timeline-head">
+                              {item.time ? (
+                                <span className="minutes-timeline-time">
+                                  {item.time}
+                                </span>
+                              ) : null}
+                              {item.title ? (
+                                <span className="minutes-timeline-label">
+                                  【{item.title}】
+                                </span>
+                              ) : null}
+                            </p>
+                          ) : null}
+                          <p className="minutes-timeline-body">{item.body}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+              ) : null}
+
+              <section className="minutes-doc-section">
+                <h4 className="minutes-doc-h">争议点</h4>
+                {(draft.disputes || []).length === 0 ? (
+                  <p className="muted">（无）</p>
+                ) : (
+                  draft.disputes.map((d, i) =>
+                    d.trim() ? (
+                      <blockquote key={i} className="minutes-quote">
+                        <p>{d}</p>
+                      </blockquote>
+                    ) : null,
+                  )
+                )}
+              </section>
+
+              <section className="minutes-doc-section">
+                <h4 className="minutes-doc-h">待办事项</h4>
+                {(draft.actionItems || []).length === 0 ? (
+                  <p className="muted">（无）</p>
+                ) : (
+                  <ul className="minutes-actions">
+                    {draft.actionItems.map((a, i) =>
+                      a.owner || a.action ? (
+                        <li key={i}>
+                          <p>
+                            {a.owner ? (
+                              <strong className="minutes-action-owner">
+                                {a.owner}
+                                {a.action ? "：" : ""}
+                              </strong>
+                            ) : null}
+                            {a.action || ""}
+                          </p>
+                        </li>
+                      ) : null,
+                    )}
+                  </ul>
+                )}
+              </section>
+            </article>
           )}
         </section>
       ) : null}
@@ -819,7 +1055,9 @@ export function MeetingDetailPage() {
             外脑不会在转写后自动生成。需要时点击按钮显式生成。
           </p>
           {meeting.insightsMarkdown ? (
-            <pre className="minutes-view">{meeting.insightsMarkdown}</pre>
+            <div className="insights-doc">
+              <MarkdownView source={meeting.insightsMarkdown} />
+            </div>
           ) : (
             <div className="empty-insights">
               <p className="muted">尚未生成外脑内容。</p>

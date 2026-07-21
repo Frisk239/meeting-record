@@ -21,7 +21,7 @@ import {
   saveMinutesDoc,
   saveMinutesMarkdown,
 } from "../services/minutes.js";
-import { askQuestion, listQa } from "../services/qa.js";
+import { askQuestion, createSession, getQaState } from "../services/qa.js";
 import { ensureMediaDirs } from "../services/storage.js";
 
 export const meetingRoutes = new Hono<{ Variables: AuthVariables }>();
@@ -246,17 +246,39 @@ meetingRoutes.get("/:id/audio", async (c) => {
 
 meetingRoutes.get("/:id/qa", async (c) => {
   const user = c.get("user");
-  const turns = await listQa(user.id, c.req.param("id"));
-  return c.json({ turns });
+  const sessionId = c.req.query("sessionId") || undefined;
+  const state = await getQaState(user.id, c.req.param("id"), sessionId);
+  return c.json(state);
+});
+
+meetingRoutes.post("/:id/qa/sessions", async (c) => {
+  const user = c.get("user");
+  const body = z
+    .object({ title: z.string().optional() })
+    .safeParse(await c.req.json().catch(() => ({})));
+  const session = await createSession(
+    user.id,
+    c.req.param("id"),
+    body.success ? body.data.title : undefined,
+  );
+  return c.json({ session, turns: [] as const }, 201);
 });
 
 meetingRoutes.post("/:id/qa", async (c) => {
   const body = z
-    .object({ question: z.string().min(1) })
+    .object({
+      question: z.string().min(1),
+      sessionId: z.string().optional(),
+    })
     .safeParse(await c.req.json().catch(() => ({})));
   if (!body.success) throw badRequest("请求体无效");
   const user = c.get("user");
-  const result = await askQuestion(user.id, c.req.param("id"), body.data.question);
+  const result = await askQuestion(
+    user.id,
+    c.req.param("id"),
+    body.data.question,
+    body.data.sessionId,
+  );
   return c.json(result, 201);
 });
 

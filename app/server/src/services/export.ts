@@ -1,36 +1,82 @@
 import fs from "node:fs";
+import path from "node:path";
+import fontkit from "@pdf-lib/fontkit";
 import { PDFDocument, StandardFonts, rgb, type PDFFont } from "pdf-lib";
 import { config } from "../config.js";
 import { notFound } from "../lib/errors.js";
 import { getMeeting } from "./meetings.js";
 import { getMinutes } from "./minutes.js";
 
+/**
+ * Prefer standalone TTF/OTF. pdf-lib cannot embed Windows .ttc collections.
+ * Order: common Chinese UI fonts first.
+ */
 const CJK_FONT_CANDIDATES = [
-  "C:\\Windows\\Fonts\\msyh.ttc",
-  "C:\\Windows\\Fonts\\msyh.ttf",
+  // Windows
   "C:\\Windows\\Fonts\\simhei.ttf",
-  "C:\\Windows\\Fonts\\simsun.ttc",
   "C:\\Windows\\Fonts\\simfang.ttf",
+  "C:\\Windows\\Fonts\\simkai.ttf",
+  "C:\\Windows\\Fonts\\Deng.ttf",
+  "C:\\Windows\\Fonts\\Dengb.ttf",
+  "C:\\Windows\\Fonts\\STXIHEI.TTF",
+  "C:\\Windows\\Fonts\\simsunb.ttf",
+  "C:\\Windows\\Fonts\\msyh.ttf",
+  // macOS
+  "/System/Library/Fonts/STHeiti Light.ttc",
   "/System/Library/Fonts/PingFang.ttc",
+  "/Library/Fonts/Arial Unicode.ttf",
+  // Linux
   "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
   "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+  "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+  "/usr/share/fonts/truetype/arphic/uming.ttc",
 ];
 
-async function embedPreferredFont(
+function envFontPath(): string | null {
+  const p = (process.env.PDF_CJK_FONT || process.env.MR_PDF_FONT || "").trim();
+  return p || null;
+}
+
+export type EmbeddedPdfFont = {
+  regular: PDFFont;
+  bold: PDFFont;
+  cjk: boolean;
+  fontPath?: string;
+};
+
+/** Exported for unit tests / diagnostics. */
+export function listCjkFontCandidates(): string[] {
+  const env = envFontPath();
+  return env ? [env, ...CJK_FONT_CANDIDATES] : [...CJK_FONT_CANDIDATES];
+}
+
+export async function embedPreferredFont(
   pdf: PDFDocument,
-): Promise<{ regular: PDFFont; bold: PDFFont; cjk: boolean }> {
-  for (const p of CJK_FONT_CANDIDATES) {
+): Promise<EmbeddedPdfFont> {
+  // Required for any custom TTF/OTF; without this, embedFont throws and we
+  // silently fell back to Helvetica → Chinese became "????".
+  pdf.registerFontkit(fontkit);
+
+  for (const p of listCjkFontCandidates()) {
     try {
       if (!fs.existsSync(p)) continue;
-      // pdf-lib only embeds TTF/OTF cleanly; skip .ttc collection files
-      if (p.toLowerCase().endsWith(".ttc")) continue;
+      const lower = p.toLowerCase();
+      // pdf-lib + fontkit still does not handle TrueType Collections reliably
+      if (lower.endsWith(".ttc") || lower.endsWith(".otc")) continue;
       const bytes = fs.readFileSync(p);
-      const regular = await pdf.embedFont(bytes, { subset: true });
-      return { regular, bold: regular, cjk: true };
+      let regular: PDFFont;
+      try {
+        regular = await pdf.embedFont(bytes, { subset: true });
+      } catch {
+        // Some CJK TTFs fail subsetting; full embed is larger but works.
+        regular = await pdf.embedFont(bytes, { subset: false });
+      }
+      return { regular, bold: regular, cjk: true, fontPath: p };
     } catch {
-      // try next
+      // try next candidate
     }
   }
+
   const regular = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
   return { regular, bold, cjk: false };
@@ -86,10 +132,10 @@ export async function exportPdf(
   userId: string,
   meetingId: string,
   includeTranscript: boolean,
-): Promise<{ filename: string; bytes: Uint8Array }> {
+): Promise<{ filename: string; bytes: Uint8Array; cjk: boolean; fontPath?: string }> {
   const md = await exportMarkdown(userId, meetingId, includeTranscript);
   const pdf = await PDFDocument.create();
-  const { regular, bold, cjk } = await embedPreferredFont(pdf);
+  const { regular, bold, cjk, fontPath } = await embedPreferredFont(pdf);
   let page = pdf.addPage();
   const margin = 50;
   let { width, height } = page.getSize();
@@ -125,6 +171,10 @@ export async function exportPdf(
       line = "";
     };
     for (const ch of safe) {
+      if (ch === "\t") {
+        line += "  ";
+        continue;
+      }
       const trial = line + ch;
       if (f.widthOfTextAtSize(trial, size) > maxWidth && line) flush();
       line += ch;
@@ -135,7 +185,7 @@ export async function exportPdf(
   writeLine(config.appName, true);
   if (!cjk) {
     writeLine(
-      "(PDF font has no CJK glyphs on this host; use Markdown export for full Chinese text.)",
+      "(PDF font has no CJK glyphs on this host; set PDF_CJK_FONT to a .ttf/.otf path, or use Markdown export for full Chinese.)",
     );
   }
   y -= 6;
@@ -144,7 +194,7 @@ export async function exportPdf(
     if (t.startsWith("# ")) writeLine(t.slice(2), true);
     else if (t.startsWith("## ")) writeLine(t.slice(3), true);
     else if (t.startsWith("### ")) writeLine(t.slice(4), true);
-    else if (t.startsWith("- ")) writeLine(`* ${t.slice(2)}`);
+    else if (t.startsWith("- ")) writeLine(`• ${t.slice(2)}`);
     else if (t.startsWith("> ")) writeLine(`| ${t.slice(2)}`);
     else if (t === "---") y -= 8;
     else writeLine(t || " ");
@@ -152,7 +202,7 @@ export async function exportPdf(
 
   const bytes = await pdf.save();
   const safeName = md.filename.replace(/\.md$/i, ".pdf");
-  return { filename: safeName, bytes };
+  return { filename: safeName, bytes, cjk, fontPath };
 }
 
 function formatMs(ms: number): string {

@@ -84,9 +84,18 @@ export type MeetingDetail = MeetingListItem & {
 
 export type QaTurn = {
   id: string;
+  sessionId: string;
   role: "user" | "assistant";
   content: string;
   createdAt: string;
+};
+
+export type QaSessionSummary = {
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+  messageCount: number;
 };
 
 export type ApiError = {
@@ -224,15 +233,38 @@ export function saveMinutesDoc(meetingId: string, doc: Partial<MinutesDoc>) {
   });
 }
 
-export function listQa(meetingId: string) {
-  return api<{ turns: QaTurn[] }>(`/api/meetings/${meetingId}/qa`);
+export function listQaState(meetingId: string, sessionId?: string) {
+  const q = sessionId ? `?sessionId=${encodeURIComponent(sessionId)}` : "";
+  return api<{
+    sessions: QaSessionSummary[];
+    activeSessionId: string | null;
+    turns: QaTurn[];
+  }>(`/api/meetings/${meetingId}/qa${q}`);
 }
 
-export function askQa(meetingId: string, question: string) {
-  return api<{ turns: QaTurn[]; answer: string }>(`/api/meetings/${meetingId}/qa`, {
+/** @deprecated use listQaState */
+export function listQa(meetingId: string) {
+  return listQaState(meetingId);
+}
+
+export function createQaSession(meetingId: string, title?: string) {
+  return api<{
+    session: QaSessionSummary;
+    turns: QaTurn[];
+  }>(`/api/meetings/${meetingId}/qa/sessions`, {
     method: "POST",
-    body: JSON.stringify({ question }),
+    body: JSON.stringify(title ? { title } : {}),
   });
+}
+
+export function askQa(meetingId: string, question: string, sessionId?: string) {
+  return api<{ turns: QaTurn[]; answer: string; sessionId: string }>(
+    `/api/meetings/${meetingId}/qa`,
+    {
+      method: "POST",
+      body: JSON.stringify({ question, sessionId }),
+    },
+  );
 }
 
 export function generateInsights(meetingId: string) {

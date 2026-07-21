@@ -147,6 +147,8 @@ _Avoid_: 首版 Postgres/多节点对象存储；无数据库的纯散落文件�
 
 ## 当前方位（2026-07-20）
 
+- **已知已修（需重转写）：** 原文 Speaker 1/2 纯标点鬼影 — 见 `docs/progress/speaker-punc-ghost-fix.md`（SenseVoice→vad_segment + 丢弃纯标点段）
+
 - **阶段：** MVP 主路径可用；**原文乱码（Windows GBK pipe）已修**  
 - **工程：** Slice Owner · push 由人手动  
 - **上一刀证据：** [`docs/progress/transcript-utf8-encoding-fix.md`](docs/progress/transcript-utf8-encoding-fix.md)  
@@ -154,7 +156,8 @@ _Avoid_: 首版 Postgres/多节点对象存储；无数据库的纯散落文件�
 - **应用：** `app/web` + `app/server` + `workers/asr`  
 - **已知：** 乱码会议须点「重新转写」或重传（U+FFFD 不可逆）  
 - **下一阶段（未开刀）：** 智在更深纪要细节 · **图表总结 / 思维导图**  
-- **残余 polish：** PDF CJK、Playwright 完整上传 E2E、多说话人长会 soak、4G RSS  
+- **残余 polish：** Playwright 完整上传 E2E、多说话人长会 soak、4G RSS  
+- **已修 PDF CJK：** docs/progress/pdf-cjk-fontkit-fix.md（注册 fontkit + 系统 TTF）  
 
 
 ## 相关入口

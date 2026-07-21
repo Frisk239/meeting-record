@@ -144,10 +144,8 @@ export async function getMeeting(
     segs.length > 0
       ? Math.max(...segs.map((s: TranscriptSegment) => s.endMs || 0))
       : null;
-  const durationMs =
-    primary?.durationMs ??
-    lastEnd ??
-    (primary?.byteSize ? Math.max(1000, Math.round(primary.byteSize / 16)) : null);
+  // Prefer stored media duration, else last transcript end. Never invent from byte size.
+  const durationMs = primary?.durationMs ?? lastEnd ?? null;
 
   return {
     ...toListItem(m, jobs[0]?.status ?? null),

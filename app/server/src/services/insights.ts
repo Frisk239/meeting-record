@@ -44,11 +44,11 @@ export async function generateInsights(userId: string, meetingId: string) {
 
   const packed = packForMinutes({
     system:
-      "你是会议外脑。仅在用户显式请求时生成。输出中文 Markdown：风险、机会、延伸问题、可执行建议。不要重复整份纪要。",
+      "你是会议外脑。仅在用户显式请求时生成。输出纯中文 Markdown（标题用 ##，列表用 -）。章节：风险、机会、延伸问题、可执行建议。不要输出 HTML/CSS/JS，不要用 ``` 代码围栏包裹全文，不要重复整份纪要。",
     meetingTitle: meeting.title,
     existingMinutesMarkdown: meeting.minutesMarkdown || undefined,
     segments: segs,
-    userTask: "请生成本场「AI 外脑」洞察（简洁分节）。",
+    userTask: "请生成本场「AI 外脑」洞察（简洁分节，纯 Markdown）。",
   });
 
   let markdown = "";

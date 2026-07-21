@@ -165,9 +165,26 @@ describe("meetings + upload + mock transcript", () => {
       body: JSON.stringify({ question: "有哪些待办？" }),
     });
     assert.equal(qa.status, 201);
-    const qaBody = (await qa.json()) as { turns: Array<{ role: string }>; answer: string };
+    const qaBody = (await qa.json()) as {
+      turns: Array<{ role: string; sessionId?: string }>;
+      answer: string;
+      sessionId?: string;
+    };
     assert.ok(qaBody.answer.length > 0);
     assert.ok(qaBody.turns.length >= 2);
+    assert.ok(qaBody.sessionId || qaBody.turns[0]?.sessionId);
+
+    const qaGet = await app.request(`/api/meetings/${upBody.meeting.id}/qa`, {
+      headers: { cookie: `${config.cookieName}=${cookieA}` },
+    });
+    assert.equal(qaGet.status, 200);
+    const qaState = (await qaGet.json()) as {
+      sessions: Array<{ id: string }>;
+      activeSessionId: string | null;
+      turns: Array<{ role: string }>;
+    };
+    assert.ok(qaState.sessions.length >= 1);
+    assert.ok(qaState.turns.length >= 2);
 
     const insights = await app.request(
       `/api/meetings/${upBody.meeting.id}/insights/generate`,
