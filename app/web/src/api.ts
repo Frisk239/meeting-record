@@ -33,6 +33,82 @@ export type TranscriptLine = {
   text: string;
 };
 
+export type VisualTone =
+  | "neutral"
+  | "coral"
+  | "teal"
+  | "amber"
+  | "success"
+  | "warning"
+  | "danger"
+  | "purple"
+  | "info";
+
+export type VisualIcon =
+  | "doc"
+  | "clock"
+  | "people"
+  | "flag"
+  | "check"
+  | "alert"
+  | "shield"
+  | "target"
+  | "calendar"
+  | "link"
+  | "star"
+  | "bolt"
+  | "folder"
+  | "chat";
+
+export type VisualCard = {
+  title: string;
+  badge?: string;
+  body?: string;
+  bullets?: string[];
+  footer?: string;
+  tone?: VisualTone;
+  icon?: VisualIcon;
+};
+
+export type VisualSection =
+  | { type: "hero"; title: string; subtitle?: string }
+  | {
+      type: "stage_row";
+      heading: string;
+      items: Array<{
+        title: string;
+        badge?: string;
+        body: string;
+        icon?: VisualIcon;
+        tone?: VisualTone;
+      }>;
+    }
+  | { type: "compare_cards"; heading: string; cards: VisualCard[] }
+  | {
+      type: "card_grid";
+      heading: string;
+      columns: 2 | 3 | 4;
+      cards: VisualCard[];
+    }
+  | {
+      type: "action_board";
+      heading: string;
+      items: Array<{ owner: string; action: string; due?: string }>;
+    }
+  | { type: "callout"; tone: "tip" | "warn" | "info"; text: string };
+
+export type VisualBoard = {
+  version: 1;
+  intent: string;
+  recipeId: string;
+  title: string;
+  subtitle?: string;
+  sections: VisualSection[];
+  source: string;
+  model?: string;
+  generatedAt: string;
+};
+
 export type MinutesDoc = {
   topic: string;
   time: string;
@@ -47,6 +123,7 @@ export type MinutesDoc = {
   source?: string;
   model?: string;
   generatedAt?: string;
+  visualBoard?: VisualBoard | null;
 };
 
 export type MeetingDetail = MeetingListItem & {
@@ -215,6 +292,13 @@ export function formatTime(ms: number): string {
 
 export function generateMinutes(meetingId: string) {
   return api<{ minutes: MinutesDoc }>(`/api/meetings/${meetingId}/minutes/generate`, {
+    method: "POST",
+  });
+}
+
+/** LLM-only visual board; requires existing minutes + configured LLM. */
+export function generateMinutesVisual(meetingId: string) {
+  return api<{ minutes: MinutesDoc }>(`/api/meetings/${meetingId}/minutes/visual`, {
     method: "POST",
   });
 }

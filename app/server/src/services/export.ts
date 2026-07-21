@@ -377,6 +377,83 @@ export function insightsSourceToMarkdown(source: string): string {
   return s;
 }
 
+/** Flatten visual board into markdown for MD export. */
+function visualBoardToMarkdown(board: unknown): string {
+  if (!board || typeof board !== "object") return "";
+  const b = board as {
+    title?: string;
+    subtitle?: string;
+    sections?: Array<Record<string, unknown>>;
+  };
+  if (!Array.isArray(b.sections) || !b.sections.length) return "";
+  const lines: string[] = ["## 图解总览", ""];
+  if (b.subtitle) {
+    lines.push(`> ${stripMdInline(String(b.subtitle))}`, "");
+  }
+  for (const sec of b.sections) {
+    const type = String(sec.type || "");
+    if (type === "hero") {
+      lines.push(`### ${stripMdInline(String(sec.title || ""))}`);
+      if (sec.subtitle) lines.push(stripMdInline(String(sec.subtitle)));
+      lines.push("");
+      continue;
+    }
+    if (type === "stage_row") {
+      lines.push(`### ${stripMdInline(String(sec.heading || "关键维度"))}`);
+      const items = Array.isArray(sec.items) ? sec.items : [];
+      for (const it of items) {
+        if (!it || typeof it !== "object") continue;
+        const row = it as Record<string, unknown>;
+        lines.push(
+          `- **${stripMdInline(String(row.title || ""))}**：${stripMdInline(String(row.body || ""))}`,
+        );
+      }
+      lines.push("");
+      continue;
+    }
+    if (type === "compare_cards" || type === "card_grid") {
+      lines.push(`### ${stripMdInline(String(sec.heading || "要点"))}`);
+      const cards = Array.isArray(sec.cards) ? sec.cards : [];
+      for (const c of cards) {
+        if (!c || typeof c !== "object") continue;
+        const card = c as Record<string, unknown>;
+        lines.push(`#### ${stripMdInline(String(card.title || ""))}`);
+        const bullets = Array.isArray(card.bullets) ? card.bullets : [];
+        for (const x of bullets) lines.push(`- ${stripMdInline(String(x))}`);
+        if (card.footer) lines.push(`- ${stripMdInline(String(card.footer))}`);
+        lines.push("");
+      }
+      continue;
+    }
+    if (type === "action_board") {
+      lines.push(`### ${stripMdInline(String(sec.heading || "待办"))}`);
+      const items = Array.isArray(sec.items) ? sec.items : [];
+      for (const it of items) {
+        if (!it || typeof it !== "object") continue;
+        const row = it as Record<string, unknown>;
+        lines.push(
+          `- **${stripMdInline(String(row.owner || "未指定"))}** — ${stripMdInline(String(row.action || ""))}`,
+        );
+      }
+      lines.push("");
+      continue;
+    }
+    if (type === "callout") {
+      lines.push(`> ${stripMdInline(String(sec.text || ""))}`, "");
+    }
+  }
+  return lines.join("\n").trim();
+}
+
+function visualBoardToBlocks(board: unknown): PdfBlock[] {
+  const md = visualBoardToMarkdown(board);
+  if (!md) return [];
+  return [
+    { kind: "spacer", pt: 10 },
+    ...markdownToPdfBlocks(md),
+  ];
+}
+
 function insightsToBlocks(source: string): PdfBlock[] {
   const md = insightsSourceToMarkdown(source);
   if (!md) return [];
@@ -417,6 +494,12 @@ export async function exportMarkdown(
     parts.push(`# ${meeting.title}`);
     parts.push("");
     parts.push("_尚未生成纪要_");
+    parts.push("");
+  }
+
+  const visualMd = visualBoardToMarkdown(minutes?.visualBoard);
+  if (visualMd) {
+    parts.push(visualMd);
     parts.push("");
   }
 
@@ -804,6 +887,10 @@ export async function exportPdf(
     blocks = [{ kind: "h1", text: meeting.title || "会议导出" }];
   } else {
     blocks = [{ kind: "h1", text: meeting.title || "会议纪要" }, { kind: "p", text: "尚未生成纪要" }];
+  }
+
+  if (minutes?.visualBoard) {
+    blocks = [...blocks, ...visualBoardToBlocks(minutes.visualBoard)];
   }
 
   // 外脑：仅已显式生成时附加

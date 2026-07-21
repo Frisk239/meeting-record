@@ -8,6 +8,7 @@ import {
   formatTime,
   generateInsights,
   generateMinutes,
+  generateMinutesVisual,
   getMeeting,
   meetingAudioUrl,
   retranscribeMeeting,
@@ -20,6 +21,7 @@ import {
 import { AudioDropZone } from "../components/AudioDropZone";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { MarkdownView } from "../components/MarkdownView";
+import { MinutesVisualSlot } from "../components/MinutesVisualBoard";
 
 type Tab = "minutes" | "transcript" | "insights";
 type RecFilter = "time" | "speaker" | string;
@@ -38,6 +40,7 @@ function emptyMinutes(title: string): MinutesDoc {
     actionItems: [],
     timeline: [],
     markdown: "",
+    visualBoard: null,
   };
 }
 
@@ -125,6 +128,8 @@ export function MeetingDetailPage() {
   const [confirm, setConfirm] = useState<null | "cancel" | "delete">(null);
   /** Minutes tab: document reading by default; form edit only when toggled. */
   const [editingMinutes, setEditingMinutes] = useState(false);
+  const [visualBusy, setVisualBusy] = useState(false);
+  const [visualError, setVisualError] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -226,6 +231,7 @@ export function MeetingDetailPage() {
     if (!id) return;
     setBusy(true);
     setMsg(null);
+    setVisualError(null);
     try {
       const res = await generateMinutes(id);
       if (!res.ok) {
@@ -233,9 +239,27 @@ export function MeetingDetailPage() {
         return;
       }
       await refresh();
-      setMsg("纪要已重新生成");
+      setMsg("纪要已重新生成（图解未自动更新，可点「重新生成图解」）");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function onGenerateVisual() {
+    if (!id) return;
+    setVisualBusy(true);
+    setVisualError(null);
+    setMsg(null);
+    try {
+      const res = await generateMinutesVisual(id);
+      if (!res.ok) {
+        setVisualError(res.data.message || "图解生成失败");
+        return;
+      }
+      await refresh();
+      setMsg("图解已生成");
+    } finally {
+      setVisualBusy(false);
     }
   }
 
@@ -537,10 +561,10 @@ export function MeetingDetailPage() {
               <button
                 type="button"
                 className="btn btn-ghost btn-sm"
-                disabled={busy || meeting.transcript.length === 0}
+                disabled={busy || visualBusy || meeting.transcript.length === 0}
                 onClick={() => void onRegenerate()}
               >
-                重新生成
+                重新生成纪要
               </button>
               {editingMinutes ? (
                 <>
@@ -586,7 +610,24 @@ export function MeetingDetailPage() {
             <p className="muted">
               纪要尚未生成。转写成功后将自动生成（Auto Minutes）。
             </p>
-          ) : editingMinutes ? (
+          ) : (
+            <>
+              {/* Reserved figure slot — always visible once minutes path is active */}
+              <MinutesVisualSlot
+                board={draft.visualBoard ?? meeting.minutes?.visualBoard ?? null}
+                loading={visualBusy}
+                error={visualError}
+                onGenerate={() => void onGenerateVisual()}
+                disabled={busy || visualBusy}
+                hasMinutes={
+                  meeting.minutesStatus !== "none" ||
+                  Boolean(draft.topic || draft.markdown || meeting.minutesMarkdown)
+                }
+              />
+            </>
+          )}
+
+          {meeting.minutesStatus === "none" && meeting.status !== "ready" ? null : editingMinutes ? (
             <div className="minutes-edit stack">
               <div className="minutes-header">
                 <div className="kv-grid">

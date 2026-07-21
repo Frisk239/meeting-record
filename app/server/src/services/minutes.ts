@@ -11,6 +11,19 @@ import { badRequest, notFound } from "../lib/errors.js";
 import { packForMinutes } from "./llm/contextPacker.js";
 import { chatCompletions } from "./llm/gateway.js";
 
+/** Visual board IR — see docs/design/minutes-visual-engine.md (stored on MinutesDoc). */
+export type MinutesVisualBoard = {
+  version: 1;
+  intent: string;
+  recipeId: string;
+  title: string;
+  subtitle?: string;
+  sections: unknown[];
+  source: "llm" | "heuristic" | "user";
+  model?: string;
+  generatedAt: string;
+};
+
 export type MinutesDoc = {
   topic: string;
   time: string;
@@ -25,6 +38,8 @@ export type MinutesDoc = {
   source: "llm" | "mock";
   model: string;
   generatedAt: string;
+  /** Optional figure overview; LLM-generated only in product path. */
+  visualBoard?: MinutesVisualBoard | null;
 };
 
 const SYSTEM = `你是会议纪要助手。根据转写生成结构化中文纪要。
@@ -174,6 +189,17 @@ export async function generateMinutesForMeeting(
       "请根据转写生成完整 JSON 纪要。待办写成「责任人 + 动作」。争议点没有就返回空数组。",
   });
 
+  // Preserve existing visual board across list-minutes regen (separate button regenerates figures).
+  let prevBoard: MinutesDoc["visualBoard"] = null;
+  if (meeting.minutesJson) {
+    try {
+      const prev = JSON.parse(meeting.minutesJson) as MinutesDoc;
+      prevBoard = prev.visualBoard ?? null;
+    } catch {
+      prevBoard = null;
+    }
+  }
+
   let doc: MinutesDoc;
   try {
     const result = await chatCompletions(user, packed.messages);
@@ -215,6 +241,8 @@ export async function generateMinutesForMeeting(
     }）`;
     doc.markdown = renderMarkdown(doc);
   }
+
+  if (prevBoard) doc.visualBoard = prevBoard;
 
   const now = new Date();
   await db
@@ -394,6 +422,8 @@ export async function saveMinutesDoc(
     source: current.source || "mock",
     model: current.model || "user-edit",
     generatedAt: new Date().toISOString(),
+    // Keep figure board unless client clears it; list-edit is independent.
+    ...(current.visualBoard ? { visualBoard: current.visualBoard } : {}),
   };
 
   const now = new Date();

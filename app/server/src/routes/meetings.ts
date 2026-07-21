@@ -21,6 +21,7 @@ import {
   saveMinutesDoc,
   saveMinutesMarkdown,
 } from "../services/minutes.js";
+import { generateVisualBoardForMeeting } from "../services/visualBoard.js";
 import { askQuestion, createSession, getQaState } from "../services/qa.js";
 import { ensureMediaDirs } from "../services/storage.js";
 
@@ -156,6 +157,13 @@ meetingRoutes.get("/:id/minutes", async (c) => {
 meetingRoutes.post("/:id/minutes/generate", async (c) => {
   const user = c.get("user");
   const minutes = await generateMinutesForMeeting(c.req.param("id"), user.id);
+  return c.json({ minutes });
+});
+
+/** LLM-only figure board; does not regenerate list minutes. */
+meetingRoutes.post("/:id/minutes/visual", async (c) => {
+  const user = c.get("user");
+  const minutes = await generateVisualBoardForMeeting(user.id, c.req.param("id"));
   return c.json({ minutes });
 });
 
