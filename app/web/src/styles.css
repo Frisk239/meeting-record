@@ -2638,22 +2638,64 @@ button {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.vb-zoom-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface-soft) 80%, var(--canvas));
+  border: 1px solid var(--hairline-soft);
+}
+
+.vb-zoom-label {
+  min-width: 3.2em;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--body-strong);
+  font-variant-numeric: tabular-nums;
+  user-select: none;
 }
 
 .vb-lightbox-stage {
   flex: 1;
   min-height: 0;
-  overflow: auto;
-  padding: 16px;
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
+  overflow: hidden;
+  padding: 0;
+  display: grid;
+  place-items: center;
   background: color-mix(in srgb, var(--surface-soft) 55%, var(--canvas));
+  touch-action: none;
+  cursor: grab;
+  user-select: none;
 }
 
-.vb-lightbox-scale {
-  /* width set inline from scale * 720; contains transformed artboard */
-  overflow: visible;
+.vb-lightbox-stage.is-dragging {
+  cursor: grabbing;
+}
+
+.vb-lightbox-stage.is-zoomed {
+  cursor: grab;
+}
+
+.vb-lightbox-canvas {
+  position: relative;
+  flex-shrink: 0;
+  will-change: transform;
+}
+
+.vb-lightbox-art-wrap {
+  /* natural 720 layout; parent canvas size = scaled box for hit/pan area */
+  pointer-events: none;
+}
+
+.vb-lightbox-art-wrap .vb-artboard {
+  pointer-events: none;
 }
 
 .vb-lightbox-hint {
@@ -2662,6 +2704,16 @@ button {
   text-align: center;
   border-top: 1px solid var(--hairline-soft);
   flex-shrink: 0;
+}
+
+@media (max-width: 560px) {
+  .vb-lightbox-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .vb-lightbox-actions {
+    justify-content: space-between;
+  }
 }
 
 .vb-card {

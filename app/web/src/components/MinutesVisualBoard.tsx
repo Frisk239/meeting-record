@@ -248,7 +248,22 @@ export async function downloadVisualBoardPng(
   a.click();
 }
 
-/** Fullscreen lightbox: show artboard near full width while keeping 720 layout. */
+const LB_MIN_ZOOM = 0.4;
+const LB_MAX_ZOOM = 4;
+const LB_ZOOM_STEP = 1.25;
+
+function clampZoom(z: number): number {
+  return Math.min(LB_MAX_ZOOM, Math.max(LB_MIN_ZOOM, z));
+}
+
+/**
+ * Lightbox with real zoom + pan:
+ * - toolbar 放大 / 缩小 / 适配
+ * - 滚轮缩放（相对指针）
+ * - 拖拽平移
+ * - 双击：在「适配」与「2× 适配」之间切换
+ * - Esc 关闭；+/-/0 快捷键
+ */
 function VisualBoardLightbox({
   board,
   open,
@@ -265,50 +280,187 @@ function VisualBoardLightbox({
   const titleId = useId();
   const lightboxArtRef = useRef<HTMLDivElement | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
-  const [scale, setScale] = useState(1);
+  const [fitZoom, setFitZoom] = useState(1);
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [boardH, setBoardH] = useState(480);
+  const dragRef = useRef<{
+    active: boolean;
+    startX: number;
+    startY: number;
+    origX: number;
+    origY: number;
+  } | null>(null);
+  const [dragging, setDragging] = useState(false);
+
+  const recomputeFit = useCallback(() => {
+    const stage = stageRef.current;
+    if (!stage) return 1;
+    const pad = 32;
+    const availW = Math.max(160, stage.clientWidth - pad);
+    const availH = Math.max(160, stage.clientHeight - pad);
+    const art = stage.querySelector(".vb-artboard") as HTMLElement | null;
+    const naturalH = art?.offsetHeight || boardH || 480;
+    if (art?.offsetHeight) setBoardH(art.offsetHeight);
+    const byW = availW / VISUAL_ARTBOARD_WIDTH;
+    const byH = availH / Math.max(1, naturalH);
+    // Fit entirely in view; may be < 1 on phones
+    return clampZoom(Math.min(byW, byH, 1.25));
+  }, [boardH]);
 
   useEffect(() => {
     if (!open) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") {
+        onClose();
+        return;
+      }
+      if (e.key === "+" || e.key === "=") {
+        e.preventDefault();
+        setZoom((z) => clampZoom(z * LB_ZOOM_STEP));
+      } else if (e.key === "-" || e.key === "_") {
+        e.preventDefault();
+        setZoom((z) => clampZoom(z / LB_ZOOM_STEP));
+      } else if (e.key === "0") {
+        e.preventDefault();
+        const fit = recomputeFit();
+        setFitZoom(fit);
+        setZoom(fit);
+        setPan({ x: 0, y: 0 });
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => {
       document.body.style.overflow = prev;
       window.removeEventListener("keydown", onKey);
     };
-  }, [open, onClose]);
+  }, [open, onClose, recomputeFit]);
 
+  // Initial fit when opening / board changes
   useEffect(() => {
     if (!open) return;
     const stage = stageRef.current;
     if (!stage) return;
 
-    const measure = () => {
-      const pad = 24;
-      const availW = Math.max(200, stage.clientWidth - pad);
-      const availH = Math.max(200, stage.clientHeight - pad);
-      const art = stage.querySelector(".vb-artboard") as HTMLElement | null;
-      const naturalH = art?.offsetHeight || 480;
-      const byW = availW / VISUAL_ARTBOARD_WIDTH;
-      const byH = availH / naturalH;
-      // Allow slight upscale on large monitors so "放大" feels larger than inline card
-      setScale(Math.min(1.35, Math.max(0.4, Math.min(byW, byH))));
+    const applyFit = () => {
+      const fit = recomputeFit();
+      setFitZoom(fit);
+      setZoom(fit);
+      setPan({ x: 0, y: 0 });
     };
 
-    measure();
-    const ro = new ResizeObserver(() => measure());
+    applyFit();
+    const ro = new ResizeObserver(() => {
+      // Keep relative zoom vs fit when stage resizes
+      const nextFit = recomputeFit();
+      setFitZoom((prevFit) => {
+        setZoom((z) => {
+          const rel = prevFit > 0 ? z / prevFit : 1;
+          return clampZoom(nextFit * rel);
+        });
+        return nextFit;
+      });
+    });
     ro.observe(stage);
-    const t = window.setTimeout(measure, 40);
+    const t1 = window.setTimeout(applyFit, 40);
+    const t2 = window.setTimeout(applyFit, 200);
     return () => {
       ro.disconnect();
-      window.clearTimeout(t);
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
     };
-  }, [open, board]);
+  }, [open, board, recomputeFit]);
+
+  const zoomBy = useCallback((factor: number, center?: { x: number; y: number }) => {
+    setZoom((prev) => {
+      const next = clampZoom(prev * factor);
+      if (center && stageRef.current) {
+        const rect = stageRef.current.getBoundingClientRect();
+        const cx = center.x - rect.left - rect.width / 2;
+        const cy = center.y - rect.top - rect.height / 2;
+        // Keep point under cursor stable-ish
+        setPan((p) => ({
+          x: cx - ((cx - p.x) * next) / prev,
+          y: cy - ((cy - p.y) * next) / prev,
+        }));
+      }
+      return next;
+    });
+  }, []);
+
+  const zoomIn = () => zoomBy(LB_ZOOM_STEP);
+  const zoomOut = () => zoomBy(1 / LB_ZOOM_STEP);
+  const zoomFit = () => {
+    const fit = recomputeFit();
+    setFitZoom(fit);
+    setZoom(fit);
+    setPan({ x: 0, y: 0 });
+  };
+  const zoom100 = () => {
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
+  };
+
+  const onWheel = (e: React.WheelEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const factor = e.deltaY > 0 ? 1 / LB_ZOOM_STEP : LB_ZOOM_STEP;
+    zoomBy(factor, { x: e.clientX, y: e.clientY });
+  };
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    if (e.button !== 0) return;
+    // Always allow pan; even at fit zoom small nudges help
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    dragRef.current = {
+      active: true,
+      startX: e.clientX,
+      startY: e.clientY,
+      origX: pan.x,
+      origY: pan.y,
+    };
+    setDragging(true);
+  };
+
+  const onPointerMove = (e: React.PointerEvent) => {
+    const d = dragRef.current;
+    if (!d?.active) return;
+    setPan({
+      x: d.origX + (e.clientX - d.startX),
+      y: d.origY + (e.clientY - d.startY),
+    });
+  };
+
+  const endDrag = (e: React.PointerEvent) => {
+    if (dragRef.current?.active) {
+      try {
+        (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+      } catch {
+        // ignore
+      }
+    }
+    dragRef.current = null;
+    setDragging(false);
+  };
+
+  const onDoubleClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    // Toggle fit ↔ 2× fit (local magnify)
+    if (Math.abs(zoom - fitZoom) < 0.05) {
+      zoomBy(2, { x: e.clientX, y: e.clientY });
+    } else {
+      zoomFit();
+    }
+  };
 
   if (!open || typeof document === "undefined") return null;
+
+  const pct = Math.round(zoom * 100);
+  const scaledW = VISUAL_ARTBOARD_WIDTH * zoom;
+  const scaledH = boardH * zoom;
 
   return createPortal(
     <div
@@ -318,22 +470,57 @@ function VisualBoardLightbox({
       aria-labelledby={titleId}
       onClick={onClose}
     >
-      <div
-        className="vb-lightbox-panel"
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="vb-lightbox-panel" onClick={(e) => e.stopPropagation()}>
         <div className="vb-lightbox-bar">
           <h3 id={titleId} className="vb-lightbox-title">
             图解预览
           </h3>
           <div className="vb-lightbox-actions">
+            <div className="vb-zoom-group" role="group" aria-label="缩放">
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={zoomOut}
+                disabled={zoom <= LB_MIN_ZOOM + 0.001}
+                title="缩小（-）"
+              >
+                −
+              </button>
+              <span className="vb-zoom-label" title="当前缩放">
+                {pct}%
+              </span>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={zoomIn}
+                disabled={zoom >= LB_MAX_ZOOM - 0.001}
+                title="放大（+）"
+              >
+                +
+              </button>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={zoomFit}
+                title="适配窗口（0）"
+              >
+                适配
+              </button>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={zoom100}
+                title="原始 100%"
+              >
+                1:1
+              </button>
+            </div>
             {onDownload ? (
               <button
                 type="button"
                 className="btn btn-ghost btn-sm"
                 disabled={Boolean(downloadBusy)}
                 onClick={() => {
-                  // Prefer lightbox artboard node for crisp export if present
                   const node = lightboxArtRef.current;
                   if (node) {
                     void downloadVisualBoardPng(
@@ -348,27 +535,36 @@ function VisualBoardLightbox({
                 {downloadBusy ? "导出中…" : "下载 PNG"}
               </button>
             ) : null}
-            <button
-              type="button"
-              className="btn btn-primary btn-sm"
-              onClick={onClose}
-            >
+            <button type="button" className="btn btn-primary btn-sm" onClick={onClose}>
               关闭
             </button>
           </div>
         </div>
-        <div ref={stageRef} className="vb-lightbox-stage">
+
+        <div
+          ref={stageRef}
+          className={`vb-lightbox-stage${dragging ? " is-dragging" : ""}${zoom > fitZoom + 0.02 ? " is-zoomed" : ""}`}
+          onWheel={onWheel}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={endDrag}
+          onPointerCancel={endDrag}
+          onDoubleClick={onDoubleClick}
+        >
           <div
-            className="vb-lightbox-scale"
+            className="vb-lightbox-canvas"
             style={{
-              width: VISUAL_ARTBOARD_WIDTH * scale,
-              height: "auto",
+              width: scaledW,
+              height: scaledH,
+              transform: `translate(${pan.x}px, ${pan.y}px)`,
             }}
           >
             <div
+              className="vb-lightbox-art-wrap"
               style={{
                 width: VISUAL_ARTBOARD_WIDTH,
-                transform: `scale(${scale})`,
+                height: boardH,
+                transform: `scale(${zoom})`,
                 transformOrigin: "top left",
               }}
             >
@@ -376,7 +572,10 @@ function VisualBoardLightbox({
             </div>
           </div>
         </div>
-        <p className="muted caption vb-lightbox-hint">点击遮罩或按 Esc 关闭</p>
+
+        <p className="muted caption vb-lightbox-hint">
+          滚轮缩放 · 拖拽平移 · 双击放大/适配 · Esc 关闭
+        </p>
       </div>
     </div>,
     document.body,
