@@ -2,7 +2,13 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import { describe, it } from "node:test";
 import { PDFDocument } from "pdf-lib";
-import { embedPreferredFont, listCjkFontCandidates } from "./services/export.js";
+import {
+  embedPreferredFont,
+  listCjkFontCandidates,
+  markdownToPdfBlocks,
+  stripMdInline,
+  stripYamlFrontmatter,
+} from "./services/export.js";
 
 function hasSystemCjkTtf(): boolean {
   return listCjkFontCandidates().some((p) => {
@@ -56,5 +62,54 @@ describe("pdf export CJK fonts", () => {
       emb.regular.widthOfTextAtSize("????", 12),
       emb.regular.widthOfTextAtSize(sample, 12),
     );
+  });
+});
+
+describe("pdf layout helpers", () => {
+  it("strips YAML frontmatter and markdown markers", () => {
+    const md = `---
+title: "demo"
+app: "Meeting Record"
+exportedAt: "2026-07-21T00:00:00.000Z"
+---
+
+# 2023级实习与毕业安排
+
+## 纪要头
+- **主题：** 2023级实习与毕业安排
+- **时间：** 2026-07-21
+`;
+    const body = stripYamlFrontmatter(md);
+    assert.equal(body.startsWith("# "), true, `body starts: ${JSON.stringify(body.slice(0, 40))}`);
+    assert.equal(body.includes("exportedAt"), false);
+    assert.equal(stripMdInline("**主题：** 实习"), "主题： 实习");
+  });
+
+  it("parses markdown into readable blocks without raw markers", () => {
+    const blocks = markdownToPdfBlocks(`# 标题
+
+## 关键议题
+### 1. 实习机会
+- **第一波** 招聘
+- 第二点
+
+> 争议：时间是否够
+
+---
+`);
+    const kinds = blocks.map((b) => b.kind);
+    assert.ok(kinds.includes("h1"));
+    assert.ok(kinds.includes("h2"));
+    assert.ok(kinds.includes("h3"));
+    assert.ok(kinds.includes("li"));
+    assert.ok(kinds.includes("quote"));
+    const h1 = blocks.find((b) => b.kind === "h1");
+    assert.equal(h1 && h1.kind === "h1" ? h1.text : "", "标题");
+    const li = blocks.find((b) => b.kind === "li");
+    assert.ok(li && li.kind === "li");
+    if (li && li.kind === "li") {
+      assert.equal(li.text.includes("**"), false);
+      assert.ok(li.text.includes("第一波"));
+    }
   });
 });
