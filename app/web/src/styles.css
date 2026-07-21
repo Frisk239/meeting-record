@@ -2198,15 +2198,37 @@ button {
   background: #fff;
 }
 
-/* Kill useless nested horizontal scrollbar on minutes card */
+/* Kill useless nested scrollbars on minutes card (page scrolls only). */
 .minutes-panel,
 .minutes-doc,
 .insights-doc,
-.card.stack {
+.detail-page .card.stack {
   scrollbar-gutter: auto;
+  max-height: none !important;
 }
 
-.minutes-panel {
+.minutes-panel,
+.minutes-doc,
+.detail-page .card.stack {
+  overflow-x: clip !important;
+  overflow-y: visible !important;
+}
+
+/* Hide any residual scrollbar chrome inside minutes reading panel */
+.minutes-panel,
+.minutes-doc {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* legacy Edge */
+}
+
+.minutes-panel::-webkit-scrollbar,
+.minutes-doc::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;
+}
+
+.detail-page {
   overflow-x: clip;
   overflow-y: visible;
 }
