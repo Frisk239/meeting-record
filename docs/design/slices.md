@@ -14,7 +14,9 @@
 | S3 | 追问子页 | 纪要右下角进入；基于本场原文/纪要提问作答 | **done**（`s3s4-qa-insights-impl-1`） |
 | S4 | 外脑按需 | 详情外脑 Tab；显式生成，不自动 | **done**（同 `s3s4-qa-insights-impl-1`） |
 | S5 | 原型对齐 | 分块纪要 · 原文播放 · 追加录音/导入 · 个人资料 · Job 横幅 | **done**（`s5-prototype-parity-impl-1`） |
-| — | 后续 | 图解、换角度总结、Speaker 改名、搜索… | 待价值排序；**不做探索** |
+| S6a | Minutes Visual Engine V1 | 闭合 IR + heuristic 图解 + 纪要顶栏渲染 + 导出；按钮生成 | **designed**（`minutes-visual-engine.md`）；未实现 |
+| S6b | Visual LLM filler | Intent/Recipe + LLM 填 board；失败回落 heuristic | planned（依赖 S6a） |
+| — | 后续 | 换角度总结、Speaker 改名、搜索、思维导图… | 待价值排序；**不做探索** |
 
 ## 状态词
 
