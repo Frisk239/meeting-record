@@ -227,7 +227,27 @@ export function RecordPage() {
       <header className="page-header">
         <div>
           <p className="caption muted">
-            <Link to={appendMeetingId ? `/meetings/${appendMeetingId}` : "/"}>← 返回</Link>
+            <Link
+              className="btn-back"
+              to={appendMeetingId ? `/meetings/${appendMeetingId}` : "/"}
+              aria-label="返回"
+            >
+              <span className="btn-back-icon" aria-hidden>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M15 18l-6-6 6-6" />
+                </svg>
+              </span>
+              <span>返回</span>
+            </Link>
           </p>
           <h1 className="page-title">{title}</h1>
           <p className="muted">

@@ -466,13 +466,18 @@ export function MeetingDetailPage() {
         onPause={() => setPlaying(false)}
       />
 
-      <header className="page-header">
-        <div>
-          <p className="caption muted">
-            <Link to="/">← 笔记</Link>
-          </p>
+      <header className="page-header detail-header">
+        <div className="detail-header-main">
+          <Link to="/" className="btn-back" aria-label="返回笔记列表">
+            <span className="btn-back-icon" aria-hidden>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M15 18l-6-6 6-6" />
+              </svg>
+            </span>
+            <span>笔记</span>
+          </Link>
           <h1 className="page-title">{meeting.title}</h1>
-          <p className="muted caption">
+          <p className="muted caption detail-status-line">
             {meeting.status}
             {meeting.jobs[0] ? ` · ${meeting.jobs[0].engine}/${meeting.jobs[0].status}` : ""}
             {` · 纪要 ${meeting.minutesStatus}`}
@@ -1171,8 +1176,13 @@ export function MeetingDetailPage() {
       ) : null}
 
       {tab === "minutes" && meeting.status === "ready" ? (
-        <Link className="fab-ask" to={`/meetings/${meeting.id}/qa`}>
-          💬 追问
+        <Link className="fab-ask" to={`/meetings/${meeting.id}/qa`} aria-label="追问">
+          <span className="fab-ask-icon" aria-hidden>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 12a8 8 0 0 1-8 8H7l-4 3V12a8 8 0 1 1 18 0z" />
+            </svg>
+          </span>
+          <span>追问</span>
         </Link>
       ) : null}
 

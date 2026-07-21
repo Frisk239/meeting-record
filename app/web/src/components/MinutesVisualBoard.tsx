@@ -690,10 +690,10 @@ export function MinutesVisualSlot({
           type="button"
           className="vb-open-hit"
           onClick={openLightbox}
-          title="点击放大图解"
+          title="放大图解"
+          aria-label="放大图解"
         >
           <MinutesVisualBoard board={board!} artboardRef={artboardRef} />
-          <span className="vb-open-hint">点击放大</span>
         </button>
       ) : (
         <div className="vb-placeholder">
@@ -738,10 +738,10 @@ export function VisualBoardReadonly({
         type="button"
         className="vb-open-hit"
         onClick={() => setOpen(true)}
-        title="点击放大图解"
+        title="放大图解"
+        aria-label="放大图解"
       >
         <MinutesVisualBoard board={board} />
-        <span className="vb-open-hint">点击放大</span>
       </button>
       <VisualBoardLightbox
         board={board}

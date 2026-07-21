@@ -239,7 +239,9 @@ export function MeetingQaPage() {
       <header className="qa-topbar">
         <div className="qa-topbar-left">
           <Link className="qa-back" to={`/meetings/${id}`} aria-label="返回纪要">
-            ←
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M15 18l-6-6 6-6" />
+            </svg>
           </Link>
           <div className="qa-topbar-titles">
             <h1 className="qa-topbar-title">追问</h1>
@@ -319,7 +321,9 @@ export function MeetingQaPage() {
         {empty ? (
           <div className="qa-hero-empty">
             <div className="qa-hero-icon" aria-hidden>
-              💬
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 12a8 8 0 0 1-8 8H7l-4 3V12a8 8 0 1 1 18 0z" />
+              </svg>
             </div>
             <h2 className="qa-hero-title">就本场会议提问</h2>
             <p className="muted qa-hero-desc">
