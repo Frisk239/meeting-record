@@ -28,6 +28,12 @@ pnpm exec tsx --test src/export-pdf.test.ts src/meetings.test.ts
 # 8/8 pass
 ```
 
+## Follow-up (2026-07-21)
+
+- 去掉 H2 / 页眉 / 分隔 `---` 的硬分割线，仅保留间距
+- PDF / MD 导出：若已显式生成外脑则附加「AI 外脑」；未生成不出现空段
+- HTML 外脑内容转为纯文本块再排版
+
 ## User action
 
 重启 API → 会议详情 → **导出 PDF** 重新下载。

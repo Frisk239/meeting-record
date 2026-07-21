@@ -308,7 +308,7 @@ function transcriptToBlocks(
 ): PdfBlock[] {
   if (!lines.length) return [];
   const blocks: PdfBlock[] = [
-    { kind: "hr" },
+    { kind: "spacer", pt: 14 },
     { kind: "h2", text: "原文转写" },
     { kind: "spacer", pt: 4 },
   ];
@@ -324,6 +324,73 @@ function transcriptToBlocks(
   return blocks;
 }
 
+/** Best-effort: full HTML 外脑 docs → plain-ish markdown for PDF blocks. */
+export function insightsSourceToMarkdown(source: string): string {
+  let s = stripYamlFrontmatter(String(source || "")).trim();
+  if (!s) return "";
+
+  // ```html ... ``` fence
+  const fence = s.match(/^```(?:html|markdown|md|htm)?\s*\n([\s\S]*?)\n```\s*$/i);
+  if (fence) s = fence[1]!.trim();
+
+  const looksHtml =
+    /^<!DOCTYPE\s+html/i.test(s) ||
+    /^<html[\s>]/i.test(s) ||
+    (/<style[\s>]/i.test(s) && /<(?:h[1-6]|ul|ol|div|p)\b/i.test(s));
+
+  if (!looksHtml) return s;
+
+  // Drop head/style/script
+  s = s
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<head[\s\S]*?<\/head>/gi, "");
+
+  // Structural tags → markdown-ish newlines
+  s = s
+    .replace(/<\/(p|div|section|article|li|tr|h[1-6])>/gi, "\n")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<h1[^>]*>/gi, "\n# ")
+    .replace(/<h2[^>]*>/gi, "\n## ")
+    .replace(/<h3[^>]*>/gi, "\n### ")
+    .replace(/<li[^>]*>/gi, "\n- ")
+    .replace(/<blockquote[^>]*>/gi, "\n> ")
+    .replace(/<\/blockquote>/gi, "\n");
+
+  // Strip remaining tags
+  s = s.replace(/<[^>]+>/g, "");
+  s = s
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'");
+
+  // Collapse blank runs
+  s = s
+    .split("\n")
+    .map((l) => l.replace(/[ \t]+/g, " ").trim())
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  return s;
+}
+
+function insightsToBlocks(source: string): PdfBlock[] {
+  const md = insightsSourceToMarkdown(source);
+  if (!md) return [];
+  const body = markdownToPdfBlocks(md);
+  // Avoid a second top-level H1 if model already titled the doc
+  const cleaned = body.filter((b, idx) => !(idx === 0 && b.kind === "h1"));
+  return [
+    { kind: "spacer", pt: 14 },
+    { kind: "h2", text: "AI 外脑" },
+    { kind: "spacer", pt: 4 },
+    ...cleaned,
+  ];
+}
+
 export async function exportMarkdown(
   userId: string,
   meetingId: string,
@@ -331,7 +398,8 @@ export async function exportMarkdown(
 ): Promise<{ filename: string; content: string }> {
   const meeting = await getMeeting(userId, meetingId);
   const minutes = await getMinutes(userId, meetingId);
-  if (!minutes?.markdown && !meeting.transcript.length) {
+  const insightsMd = (meeting.insightsMarkdown || "").trim();
+  if (!minutes?.markdown && !meeting.transcript.length && !insightsMd) {
     throw notFound("无可导出内容");
   }
 
@@ -349,6 +417,16 @@ export async function exportMarkdown(
     parts.push(`# ${meeting.title}`);
     parts.push("");
     parts.push("_尚未生成纪要_");
+    parts.push("");
+  }
+
+  // Only include 外脑 when user has explicitly generated it
+  if (insightsMd) {
+    parts.push("---");
+    parts.push("");
+    parts.push("## AI 外脑");
+    parts.push("");
+    parts.push(insightsSourceToMarkdown(insightsMd));
     parts.push("");
   }
 
@@ -414,7 +492,7 @@ function ensureSpace(ctx: DrawCtx, need: number) {
 }
 
 function drawPageHeader(ctx: DrawCtx) {
-  // subtle brand line only on page 1 is handled by content; continuing pages get small app name
+  // continuing pages get small app name only (no divider line)
   if (ctx.pageNo <= 1) return;
   const label = sanitizeText(config.appName, ctx.cjk);
   ctx.page.drawText(label, {
@@ -424,13 +502,7 @@ function drawPageHeader(ctx: DrawCtx) {
     font: ctx.regular,
     color: MUTED,
   });
-  ctx.page.drawLine({
-    start: { x: ctx.marginX, y: ctx.height - 34 },
-    end: { x: ctx.width - ctx.marginX, y: ctx.height - 34 },
-    thickness: 0.6,
-    color: RULE,
-  });
-  ctx.y = Math.min(ctx.y, ctx.height - 48);
+  ctx.y = Math.min(ctx.y, ctx.height - 44);
 }
 
 function drawPageFooter(ctx: DrawCtx) {
@@ -522,15 +594,9 @@ function drawBlocks(ctx: DrawCtx, blocks: PdfBlock[]) {
     }
 
     if (b.kind === "hr") {
+      // No hard divider lines — spacing only (user preference)
       ensureSpace(ctx, 16);
-      ctx.y -= 6;
-      ctx.page.drawLine({
-        start: { x: ctx.marginX, y: ctx.y },
-        end: { x: ctx.width - ctx.marginX, y: ctx.y },
-        thickness: 0.8,
-        color: RULE,
-      });
-      ctx.y -= 12;
+      ctx.y -= 14;
       continue;
     }
 
@@ -542,37 +608,20 @@ function drawBlocks(ctx: DrawCtx, blocks: PdfBlock[]) {
         font: ctx.bold,
         lineHeight: 28,
       });
-      // coral underline
-      ensureSpace(ctx, 10);
-      ctx.y -= 2;
-      ctx.page.drawLine({
-        start: { x: ctx.marginX, y: ctx.y },
-        end: { x: ctx.marginX + Math.min(72, contentWidth * 0.25), y: ctx.y },
-        thickness: 2.5,
-        color: ACCENT,
-      });
-      ctx.y -= 14;
+      ctx.y -= 10;
       continue;
     }
 
     if (b.kind === "h2") {
-      ensureSpace(ctx, 36);
-      ctx.y -= 10;
+      ensureSpace(ctx, 30);
+      ctx.y -= 12;
       drawWrapped(ctx, b.text, {
         size: 14,
         font: ctx.bold,
         color: INK,
         lineHeight: 20,
       });
-      ensureSpace(ctx, 8);
-      ctx.y -= 2;
-      ctx.page.drawLine({
-        start: { x: ctx.marginX, y: ctx.y },
-        end: { x: ctx.width - ctx.marginX, y: ctx.y },
-        thickness: 0.9,
-        color: RULE,
-      });
-      ctx.y -= 10;
+      ctx.y -= 6;
       continue;
     }
 
@@ -688,7 +737,8 @@ export async function exportPdf(
 ): Promise<{ filename: string; bytes: Uint8Array; cjk: boolean; fontPath?: string }> {
   const meeting = await getMeeting(userId, meetingId);
   const minutes = await getMinutes(userId, meetingId);
-  if (!minutes?.markdown && !meeting.transcript.length) {
+  const insightsMd = (meeting.insightsMarkdown || "").trim();
+  if (!minutes?.markdown && !meeting.transcript.length && !insightsMd) {
     throw notFound("无可导出内容");
   }
 
@@ -712,7 +762,7 @@ export async function exportPdf(
     pageNo: 1,
   };
 
-  // Brand header (not YAML dump)
+  // Brand header (not YAML dump) — no hard divider line under header
   const brand = sanitizeText(config.appName, cjk);
   ctx.page.drawText(brand, {
     x: ctx.marginX,
@@ -733,13 +783,6 @@ export async function exportPdf(
     font: ctx.regular,
     color: MUTED,
   });
-  ctx.y -= 10;
-  ctx.page.drawLine({
-    start: { x: ctx.marginX, y: ctx.y },
-    end: { x: ctx.width - ctx.marginX, y: ctx.y },
-    thickness: 0.7,
-    color: RULE,
-  });
   ctx.y -= 18;
 
   if (!cjk) {
@@ -757,8 +800,15 @@ export async function exportPdf(
     blocks = minutesDocToBlocks(minutes, meeting.title);
   } else if (minutes?.markdown) {
     blocks = markdownToPdfBlocks(minutes.markdown);
+  } else if (insightsMd) {
+    blocks = [{ kind: "h1", text: meeting.title || "会议导出" }];
   } else {
     blocks = [{ kind: "h1", text: meeting.title || "会议纪要" }, { kind: "p", text: "尚未生成纪要" }];
+  }
+
+  // 外脑：仅已显式生成时附加
+  if (insightsMd) {
+    blocks = [...blocks, ...insightsToBlocks(insightsMd)];
   }
 
   if (includeTranscript && meeting.transcript.length) {

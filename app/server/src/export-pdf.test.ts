@@ -4,6 +4,7 @@ import { describe, it } from "node:test";
 import { PDFDocument } from "pdf-lib";
 import {
   embedPreferredFont,
+  insightsSourceToMarkdown,
   listCjkFontCandidates,
   markdownToPdfBlocks,
   stripMdInline,
@@ -111,5 +112,21 @@ exportedAt: "2026-07-21T00:00:00.000Z"
       assert.equal(li.text.includes("**"), false);
       assert.ok(li.text.includes("第一波"));
     }
+  });
+
+  it("converts HTML insights into plain markdown-ish text", () => {
+    const html = `<!DOCTYPE html>
+<html><head><style>body{color:red}</style></head>
+<body>
+<h2>风险</h2>
+<ul><li>进度风险</li><li>质量风险</li></ul>
+<p>补充说明</p>
+</body></html>`;
+    const md = insightsSourceToMarkdown(html);
+    assert.equal(md.includes("<style"), false);
+    assert.equal(md.includes("DOCTYPE"), false);
+    assert.ok(md.includes("风险"));
+    assert.ok(md.includes("进度风险"));
+    assert.ok(md.includes("补充说明"));
   });
 });
