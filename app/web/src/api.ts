@@ -363,9 +363,9 @@ export function createMeetingShare(meetingId: string) {
     share: {
       token: string;
       path: string;
-      expiresAt: string;
+      expiresAt: string | null;
+      permanent?: boolean;
       scope: string;
-      originHint: string | null;
     };
   }>(`/api/meetings/${meetingId}/share`, { method: "POST" });
 }
@@ -380,7 +380,8 @@ export type PublicShare = {
   title: string;
   appName: string;
   scope: string;
-  expiresAt: string;
+  expiresAt: string | null;
+  permanent?: boolean;
   minutes: MinutesDoc | null;
 };
 

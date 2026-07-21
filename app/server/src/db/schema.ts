@@ -140,7 +140,7 @@ export const qaMessages = sqliteTable("qa_messages", {
   createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
 });
 
-/** Public read-only share links (token hashed at rest). */
+/** Public read-only share links (token hashed at rest). Permanent until revoked. */
 export const shareLinks = sqliteTable("share_links", {
   id: text("id").primaryKey(),
   meetingId: text("meeting_id")
@@ -151,9 +151,15 @@ export const shareLinks = sqliteTable("share_links", {
     .references(() => users.id, { onDelete: "cascade" }),
   /** sha256 hex of raw token shown in URL */
   tokenHash: text("token_hash").notNull().unique(),
-  /** minutes | minutes_visual — product default minutes+visual, no transcript */
+  /**
+   * Raw URL token kept so「分享链接」可复用同一永久 URL。
+   * High-entropy; only for self-hosted single-user product.
+   */
+  publicToken: text("public_token").notNull().default(""),
+  /** minutes_visual — 纪要+图解，无原文 */
   scope: text("scope").notNull().default("minutes_visual"),
-  expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
+  /** null = never expires (product default) */
+  expiresAt: integer("expires_at", { mode: "timestamp_ms" }),
   revokedAt: integer("revoked_at", { mode: "timestamp_ms" }),
   createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
 });

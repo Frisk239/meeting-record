@@ -140,14 +140,23 @@ export async function migrate(): Promise<void> {
       meeting_id TEXT NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
       user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       token_hash TEXT NOT NULL UNIQUE,
+      public_token TEXT NOT NULL DEFAULT '',
       scope TEXT NOT NULL DEFAULT 'minutes_visual',
-      expires_at INTEGER NOT NULL,
+      expires_at INTEGER,
       revoked_at INTEGER,
       created_at INTEGER NOT NULL
     );
     CREATE INDEX IF NOT EXISTS share_links_meeting_id_idx ON share_links(meeting_id);
     CREATE INDEX IF NOT EXISTS share_links_token_hash_idx ON share_links(token_hash);
   `);
+
+  await addColumnIfMissing(client, "share_links", "public_token", "TEXT NOT NULL DEFAULT ''");
+  // Permanent links: clear legacy short TTLs (treat as never expire)
+  try {
+    await client.execute("UPDATE share_links SET expires_at = NULL WHERE revoked_at IS NULL");
+  } catch {
+    // ignore
+  }
 
   await backfillQaSessions(client);
 }

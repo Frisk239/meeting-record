@@ -1,5 +1,9 @@
+/**
+ * Standalone public document for share links.
+ * No app shell / nav / login CTA as primary UX — pure read-only minutes + visual.
+ */
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { getPublicShare, type MinutesDoc, type PublicShare } from "../api";
 import { VisualBoardReadonly } from "../components/MinutesVisualBoard";
 
@@ -135,6 +139,16 @@ export function SharePage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Mark document mode for CSS (no app chrome)
+    document.documentElement.classList.add("share-doc-mode");
+    document.body.classList.add("share-doc-mode");
+    return () => {
+      document.documentElement.classList.remove("share-doc-mode");
+      document.body.classList.remove("share-doc-mode");
+    };
+  }, []);
+
+  useEffect(() => {
     if (!token) {
       setError("无效链接");
       setLoading(false);
@@ -148,9 +162,11 @@ export function SharePage() {
       if (!res.ok) {
         setError(res.data.message || "分享不可用");
         setShare(null);
+        document.title = "分享不可用";
       } else {
         setShare(res.data.share);
         setError(null);
+        document.title = `${res.data.share.title} · 分享`;
       }
       setLoading(false);
     })();
@@ -160,45 +176,52 @@ export function SharePage() {
   }, [token]);
 
   return (
-    <div className="share-page">
-      <header className="share-top">
-        <p className="share-brand">{share?.appName || "Meeting Record"}</p>
-        <p className="muted caption">只读分享 · 无需登录</p>
-      </header>
+    <div className="share-doc">
+      <div className="share-doc-paper">
+        {loading ? (
+          <p className="muted share-doc-status">加载分享内容…</p>
+        ) : null}
 
-      {loading ? <p className="muted">加载中…</p> : null}
-      {error ? (
-        <div className="card stack">
-          <p className="form-error">{error}</p>
-          <p className="muted caption">链接可能已过期或被撤销。</p>
-          <Link to="/login" className="btn btn-ghost btn-sm">
-            去登录
-          </Link>
-        </div>
-      ) : null}
+        {error ? (
+          <div className="share-doc-error">
+            <h1 className="share-doc-error-title">无法打开分享</h1>
+            <p className="form-error">{error}</p>
+            <p className="muted caption">
+              链接可能已被撤销，或会议已删除。此页为独立只读文档，不含登录入口。
+            </p>
+          </div>
+        ) : null}
 
-      {share && !loading ? (
-        <div className="share-body stack">
-          <h1 className="page-title">{share.title}</h1>
-          <p className="muted caption">
-            有效期至 {new Date(share.expiresAt).toLocaleString()}
-          </p>
+        {share && !loading ? (
+          <>
+            <header className="share-doc-header">
+              <p className="share-doc-kicker">会议纪要 · 只读分享</p>
+              <h1 className="share-doc-title">{share.title}</h1>
+              <p className="share-doc-meta muted caption">
+                {share.appName}
+                {share.permanent || !share.expiresAt ? " · 永久有效" : ""}
+                {" · 不含原文与录音"}
+              </p>
+            </header>
 
-          {share.minutes?.visualBoard?.sections?.length ? (
-            <VisualBoardReadonly board={share.minutes.visualBoard} />
-          ) : null}
+            {share.minutes?.visualBoard?.sections?.length ? (
+              <section className="share-doc-visual" aria-label="图解总览">
+                <VisualBoardReadonly board={share.minutes.visualBoard} />
+              </section>
+            ) : null}
 
-          {share.minutes ? (
-            <MinutesReadonly doc={share.minutes} title={share.title} />
-          ) : (
-            <p className="muted">暂无纪要内容。</p>
-          )}
+            {share.minutes ? (
+              <MinutesReadonly doc={share.minutes} title={share.title} />
+            ) : (
+              <p className="muted">暂无纪要内容。</p>
+            )}
 
-          <p className="muted caption share-foot">
-            本页为只读快照风格页面，不含原文转写与音频。
-          </p>
-        </div>
-      ) : null}
+            <footer className="share-doc-footer muted caption">
+              本页为独立只读文档，不进入应用工作台。
+            </footer>
+          </>
+        ) : null}
+      </div>
     </div>
   );
 }

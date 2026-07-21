@@ -305,9 +305,9 @@ export function MeetingDetailPage() {
       const url = `${window.location.origin}${path}`;
       try {
         await navigator.clipboard.writeText(url);
-        setMsg(`分享链接已复制（${new Date(res.data.share.expiresAt).toLocaleString()} 前有效）`);
+        setMsg("永久分享链接已复制（独立只读页，不含原文）");
       } catch {
-        setMsg(`分享链接：${url}`);
+        setMsg(`永久分享链接：${url}`);
       }
     } finally {
       setShareBusy(false);

@@ -2717,28 +2717,99 @@ a.btn-primary:hover {
   /* keep 3-col action row on artboard even if global rules differ */
 }
 
-.share-page {
-  max-width: 840px;
+/* —— Standalone share document (not in-app shell) —— */
+html.share-doc-mode,
+body.share-doc-mode {
+  height: auto;
+  min-height: 100%;
+  background: #f0ebe3;
+}
+
+body.share-doc-mode {
+  overflow-x: hidden;
+}
+
+.share-doc {
+  min-height: 100dvh;
+  padding: 28px 14px 48px;
+  background:
+    radial-gradient(ellipse at top, rgba(204, 120, 92, 0.06), transparent 50%),
+    #f0ebe3;
+}
+
+.share-doc-paper {
+  max-width: 800px;
   margin: 0 auto;
-  padding: 20px 16px 48px;
+  padding: 28px 22px 36px;
+  border-radius: 16px;
+  background: var(--canvas);
+  border: 1px solid var(--hairline);
+  box-shadow: 0 12px 40px rgba(20, 20, 19, 0.06);
 }
 
-.share-top {
-  margin-bottom: 16px;
+.share-doc-header {
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--hairline-soft);
 }
 
-.share-brand {
+.share-doc-kicker {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.share-doc-title {
+  margin: 0 0 8px;
+  font-family: var(--font-display);
+  font-size: clamp(22px, 4vw, 30px);
+  font-weight: 400;
+  line-height: 1.25;
+  color: var(--ink);
+  letter-spacing: -0.02em;
+}
+
+.share-doc-meta {
   margin: 0;
-  font-weight: 700;
+}
+
+.share-doc-visual {
+  margin: 0 0 22px;
+}
+
+.share-doc-footer {
+  margin: 28px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--hairline-soft);
+  text-align: center;
+}
+
+.share-doc-status {
+  margin: 40px 0;
+  text-align: center;
+}
+
+.share-doc-error {
+  padding: 24px 8px 12px;
+  text-align: center;
+}
+
+.share-doc-error-title {
+  margin: 0 0 10px;
+  font-size: 20px;
   color: var(--ink);
 }
 
-.share-body {
-  gap: 16px;
-}
-
-.share-foot {
-  margin-top: 24px;
+@media (min-width: 720px) {
+  .share-doc {
+    padding: 40px 24px 64px;
+  }
+  .share-doc-paper {
+    padding: 36px 40px 44px;
+  }
 }
 
 .vb-slot-readonly {

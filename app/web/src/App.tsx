@@ -35,7 +35,16 @@ function GuestOnly({ children }: { children: React.ReactNode }) {
   return children;
 }
 
-export function App() {
+function PublicShareApp() {
+  return (
+    <Routes>
+      <Route path="/s/:token" element={<SharePage />} />
+      <Route path="*" element={<SharePage />} />
+    </Routes>
+  );
+}
+
+function MainApp() {
   return (
     <Routes>
       <Route
@@ -46,7 +55,7 @@ export function App() {
           </GuestOnly>
         }
       />
-      {/* Public read-only share — no auth shell */}
+      {/* Standalone share document — no AppShell */}
       <Route path="/s/:token" element={<SharePage />} />
       <Route
         path="/"
@@ -65,4 +74,11 @@ export function App() {
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
+}
+
+export function App() {
+  // Direct open of /s/:token: main.tsx skips AuthProvider; only share routes mount.
+  const isShare =
+    typeof window !== "undefined" && /^\/s\/[^/]+/.test(window.location.pathname);
+  return isShare ? <PublicShareApp /> : <MainApp />;
 }

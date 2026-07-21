@@ -329,23 +329,19 @@ meetingRoutes.get("/:id/export.pdf", async (c) => {
   });
 });
 
-/** Create a read-only share link (minutes + visual; no transcript). */
+/** Create/reuse a permanent read-only share link (minutes + visual; no transcript). */
 meetingRoutes.post("/:id/share", async (c) => {
   const user = c.get("user");
   const result = await createShareLink(user.id, c.req.param("id"));
-  const origin =
-    c.req.header("origin") ||
-    c.req.header("x-forwarded-host") ||
-    "";
-  // Frontend builds the public URL; we return path + token.
+  // Standalone document URL (not an in-app deep link into shell routes)
   return c.json(
     {
       share: {
         token: result.token,
         path: `/s/${result.token}`,
-        expiresAt: result.expiresAt,
+        expiresAt: null,
+        permanent: true,
         scope: result.scope,
-        originHint: origin || null,
       },
     },
     201,
