@@ -155,7 +155,7 @@ export function MinutesVisualBoard({ board }: { board: VisualBoard }) {
   );
 }
 
-/** Empty / loading slot reserved on minutes page. */
+/** Empty / loading slot reserved on minutes page. Never auto-generates. */
 export function MinutesVisualSlot({
   board,
   loading,
@@ -167,28 +167,53 @@ export function MinutesVisualSlot({
   board: VisualBoard | null | undefined;
   loading: boolean;
   error: string | null;
+  /** Explicit user click only — first generate or regenerate. */
   onGenerate: () => void;
   disabled: boolean;
   hasMinutes: boolean;
 }) {
+  const hasBoard = Boolean(board && board.sections?.length);
+  const canRun = !disabled && !loading && hasMinutes;
+
   return (
     <div className="vb-slot">
       <div className="vb-slot-toolbar">
         <div>
           <h3 className="vb-slot-title">图解总览</h3>
           <p className="muted caption">
-            由 LLM 根据纪要结构化生成 · 与「重新生成纪要」分开
+            仅手动生成 · 不会在转写/纪要后自动生成
           </p>
         </div>
-        <button
-          type="button"
-          className="btn btn-primary btn-sm"
-          disabled={disabled || loading || !hasMinutes}
-          onClick={onGenerate}
-          title={!hasMinutes ? "请先生成纪要" : undefined}
-        >
-          {loading ? "生成中…" : board ? "重新生成图解" : "生成图解"}
-        </button>
+        <div className="vb-slot-actions">
+          <button
+            type="button"
+            className={`btn btn-sm ${hasBoard ? "btn-ghost" : "btn-primary"}`}
+            disabled={!canRun}
+            onClick={onGenerate}
+            title={
+              !hasMinutes
+                ? "请先生成纪要"
+                : hasBoard
+                  ? "再生成一版图解（会覆盖当前）"
+                  : "根据当前纪要生成图解（需 LLM）"
+            }
+          >
+            {loading && !hasBoard ? "生成中…" : "生成图解"}
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary btn-sm"
+            disabled={!canRun || !hasBoard}
+            onClick={onGenerate}
+            title={
+              !hasBoard
+                ? "请先生成图解"
+                : "不满意当前图解时，重新生成一版（会覆盖）"
+            }
+          >
+            {loading && hasBoard ? "生成中…" : "重新生成图解"}
+          </button>
+        </div>
       </div>
 
       {error ? <p className="form-error vb-slot-error">{error}</p> : null}
@@ -207,8 +232,8 @@ export function MinutesVisualSlot({
           </div>
           <p className="muted caption">正在调用模型生成图解…</p>
         </div>
-      ) : board && board.sections?.length ? (
-        <MinutesVisualBoard board={board} />
+      ) : hasBoard ? (
+        <MinutesVisualBoard board={board!} />
       ) : (
         <div className="vb-placeholder">
           <div className="vb-placeholder-art" aria-hidden>
@@ -219,7 +244,7 @@ export function MinutesVisualSlot({
           <p className="vb-placeholder-title">此处将展示图解总览</p>
           <p className="muted caption">
             {hasMinutes
-              ? "点击右上角「生成图解」，模型会把纪要整理成阶段条、对照卡、节点宫格等（需已配置 LLM）。"
+              ? "点击右上角「生成图解」后才会生成；不会自动生成。需已配置 LLM。"
               : "请先生成纪要，再生成图解。"}
           </p>
         </div>

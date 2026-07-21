@@ -2230,6 +2230,14 @@ button {
   flex-wrap: wrap;
 }
 
+.vb-slot-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
 .vb-slot-title {
   margin: 0;
   font-size: 15px;
