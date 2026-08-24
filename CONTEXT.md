@@ -149,20 +149,21 @@ _Avoid_: 首版 Postgres/多节点对象存储；无数据库的纯散落文件�
 13. **Drizzle + better-sqlite3** 访问 SQLite（ADR 0011）  
 14. **pnpm** 包管理（ADR 0012）  
 
-## 当前方位（2026-07-20）
+## 当前方位（2026-07-21）
 
-- **已知已修（需重转写）：** 原文 Speaker 1/2 纯标点鬼影 — 见 `docs/progress/speaker-punc-ghost-fix.md`（SenseVoice→vad_segment + 丢弃纯标点段）
-
-- **阶段：** MVP 主路径可用；**原文乱码（Windows GBK pipe）已修**  
+- **阶段：** MVP 主路径可用；**部署上线包已落地**（裸机 Linux）  
 - **工程：** Slice Owner · push 由人手动  
-- **上一刀证据：** [`docs/progress/transcript-utf8-encoding-fix.md`](docs/progress/transcript-utf8-encoding-fix.md)  
-- **已交付：** S0b–S5 · FunASR 多格式 · 进度/日志 · 删除/终止 · **UTF-8 转写管线** · **重新转写**  
+- **上一刀证据：** [`docs/progress/deploy-linux-bare-metal-impl-1.md`](docs/progress/deploy-linux-bare-metal-impl-1.md)  
+- **部署真源：** [`docs/deploy/linux.md`](docs/deploy/linux.md) · 模板 [`deploy/`](deploy/)  
+- **部署约定（grill）：** systemd + Caddy 自签 HTTPS · 同源反代 · 代码 `/opt/meeting-record` · 数据 `/var/lib/meeting-record` · API `HOST=127.0.0.1` · 单账号后关注册 · LLM 写服务器 `.env` · **不写 Docker/ADR**  
+- **已交付：** S0b–S5 · FunASR · 导出/分享/追问 · UTF-8 转写 · **Linux 部署手册与 unit**  
 - **应用：** `app/web` + `app/server` + `workers/asr`  
+- **已知已修（需重转写）：** Speaker 纯标点鬼影 — `docs/progress/speaker-punc-ghost-fix.md`  
 - **已知：** 乱码会议须点「重新转写」或重传（U+FFFD 不可逆）  
-- **下一阶段（未开刀）：** **Minutes Visual Engine（图解总结）** · 换角度总结 · 思维导图（更后）  
-- **图解引擎设计：** [`docs/design/minutes-visual-engine.md`](docs/design/minutes-visual-engine.md)（Intent/Recipe/Primitives IR；待切片实现）  
-- **残余 polish：** Playwright 完整上传 E2E、多说话人长会 soak、4G RSS  
-- **已修 PDF CJK / 排版：** docs/progress/pdf-cjk-fontkit-fix.md · docs/progress/pdf-layout-polish.md  
+- **人下一步：** 按 `docs/deploy/linux.md` 在 4C8G 服务器全量上线；Agent 对照文档排障  
+- **产品后置（未开刀）：** Minutes Visual Engine 增强 · 换角度总结 · 思维导图  
+- **图解引擎设计：** [`docs/design/minutes-visual-engine.md`](./docs/design/minutes-visual-engine.md)  
+- **残余 polish：** Playwright 完整上传 E2E、多说话人长会 soak、内存 soak  
 
 
 ## 相关入口
@@ -172,4 +173,5 @@ _Avoid_: 首版 Postgres/多节点对象存储；无数据库的纯散落文件�
 | 项目宪法 | `AGENTS.md` |
 | 愿景 | `docs/design/vision.md` |
 | UI | `docs/design/DESIGN.md` |
+| **Linux 部署** | [`docs/deploy/linux.md`](docs/deploy/linux.md) |
 | ASR + 说话人 | ADR 0003 · 0004 · `docs/design/reference/asr.md` |

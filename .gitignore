@@ -10,6 +10,7 @@ build/
 .env
 .env.*
 !.env.example
+!deploy/.env.production.example
 *.pem
 
 # Local DBs / runtime
@@ -24,6 +25,11 @@ app/server/data/
 .playwright-mcp/
 .tmp-*/
 .scratch/**/tmp/
+
+# Scratch diagnostics & WIP backups (curated notes only)
+.scratch/*
+!.scratch/README.md
+!.scratch/meeting-record-mvp/
 
 # OS / editor
 .DS_Store

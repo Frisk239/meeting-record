@@ -26,6 +26,11 @@ pnpm test
 # ASR_WORKER_PYTHON=workers/asr/.venv/Scripts/python.exe
 ```
 
+## 生产部署（Linux 裸机）
+
+单机自托管（systemd + Caddy 自签 HTTPS + FunASR CPU）：见 **[`docs/deploy/linux.md`](./docs/deploy/linux.md)**。  
+模板在 [`deploy/`](./deploy/)（`meeting-record-api.service` · `Caddyfile` · `.env.production.example`）。
+
 ## 目录速览
 
 | 路径 | 作用 |
@@ -34,6 +39,8 @@ pnpm test
 | [`CONTEXT.md`](./CONTEXT.md) | 领域词 + 方位 |
 | [`app/web`](./app/web) | Vite + React 前端 |
 | [`app/server`](./app/server) | Hono API + SQLite |
+| [`deploy/`](./deploy/) | 生产 systemd / Caddy / env 模板 |
+| [`docs/deploy/`](./docs/deploy/) | Linux 上线手册 |
 | [`docs/design/`](./docs/design/) | 愿景、架构、路线、切片、**DESIGN.md** |
 | [`docs/design/reference/`](./docs/design/reference/) | catalog + 上游 `repos/`（gitignore） |
 | [`docs/adr/`](./docs/adr/) | 难逆决策 |

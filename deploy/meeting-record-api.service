@@ -1,0 +1,25 @@
+[Unit]
+Description=Meeting Record API (Hono + FunASR spawn)
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=meeting-record
+Group=meeting-record
+WorkingDirectory=/opt/meeting-record/app/server
+Environment=NODE_ENV=production
+EnvironmentFile=/opt/meeting-record/.env
+# Ensure repo-root-relative paths and FunASR resolve consistently
+Environment=HOME=/var/lib/meeting-record
+ExecStart=/usr/bin/node dist/index.js
+Restart=on-failure
+RestartSec=5
+# Serial ASR can run long meetings; do not kill mid-job on stop unless needed
+TimeoutStopSec=60
+# Hardening (keep simple for self-host)
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,36 @@
+# Meeting Record — self-signed HTTPS reverse proxy (no domain).
+#
+# Before use:
+#   1. Change :443 to the TCP port your panel/security group allows
+#   2. Ensure API is bound to 127.0.0.1:8787 (see .env.production.example)
+#   3. Build frontend: pnpm --filter @meeting-record/web build
+#
+# Install example (Debian/Ubuntu with caddy package):
+#   sudo cp deploy/Caddyfile /etc/caddy/Caddyfile
+#   sudo systemctl reload caddy
+
+{
+	# Local CA for self-signed certs (browser shows a one-time trust warning).
+	local_certs
+}
+
+# Replace :443 if needed, e.g. :8443
+:443 {
+	encode gzip
+
+	request_body {
+		max_size 512MB
+	}
+
+	# API first (Node on loopback only)
+	handle /api/* {
+		reverse_proxy 127.0.0.1:8787
+	}
+
+	# SPA static assets + client routes
+	handle {
+		root * /opt/meeting-record/app/web/dist
+		try_files {path} /index.html
+		file_server
+	}
+}

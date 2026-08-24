@@ -7,7 +7,7 @@ await migrate();
 const app = createApp();
 
 console.log(
-  `[${config.appName}] API listening on http://127.0.0.1:${config.port}`,
+  `[${config.appName}] API listening on http://${config.host}:${config.port}`,
 );
 console.log(
   `  ALLOW_REGISTER=${config.allowRegister} (server-only; not a frontend toggle)`,
@@ -19,5 +19,5 @@ console.log(
 serve({
   fetch: app.fetch,
   port: config.port,
-  hostname: "0.0.0.0",
+  hostname: config.host,
 });

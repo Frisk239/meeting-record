@@ -14,6 +14,8 @@ function boolEnv(name: string, fallback: boolean): boolean {
 }
 
 export const config = {
+  /** Bind address. Production behind reverse proxy: 127.0.0.1 */
+  host: (process.env.HOST?.trim() || "0.0.0.0"),
   port: Number(process.env.PORT ?? 8787),
   appName: process.env.APP_NAME?.trim() || "Meeting Record",
   allowRegister: boolEnv("ALLOW_REGISTER", true),
